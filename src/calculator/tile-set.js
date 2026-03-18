@@ -12,8 +12,8 @@ export function createTileSet(overrides = {}) {
   return {
     id: generateId(),
     name: 'Nowy zestaw',
-    tileWidth: 30,
-    tileHeight: 60,
+    tileWidth: 300,
+    tileHeight: 600,
     groutGap: DEFAULTS.groutGap,
     wastePercent: DEFAULTS.waste,
     color,
