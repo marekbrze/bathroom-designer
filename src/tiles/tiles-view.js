@@ -19,8 +19,53 @@ const WALL_LABELS = {
   west: 'Ściana Zachód',
 };
 
-const WALL_ORDER = ['north', 'east', 'south', 'west', 'floor'];
+const WALL_ORDER = ['floor', 'north', 'south', 'west', 'east'];
 const GRID_SIZE = 10;
+
+function projectFixtureToWall(fixture, wallId, room) {
+  const rot = fixture.rotation || 0;
+  const isRotated = rot === 90 || rot === 270;
+  const visW = isRotated ? fixture.depth : fixture.width;
+  const visD = isRotated ? fixture.width : fixture.depth;
+  const visH = fixture.height;
+  const z = fixture.z || 0;
+
+  switch (wallId) {
+    case 'north':
+      return { x: fixture.x, y: room.height - z - visH, w: visW, h: visH };
+    case 'south':
+      return { x: room.width - fixture.x - visW, y: room.height - z - visH, w: visW, h: visH };
+    case 'west':
+      return { x: room.depth - fixture.y - visD, y: room.height - z - visH, w: visD, h: visH };
+    case 'east':
+      return { x: fixture.y, y: room.height - z - visH, w: visD, h: visH };
+    case 'floor':
+      return { x: fixture.x, y: fixture.y, w: visW, h: visD };
+    default:
+      return null;
+  }
+}
+
+function getFixturesForSurface(fixtures, wallId, room) {
+  if (wallId === 'floor') {
+    return fixtures.filter(f => !f.wallMounted);
+  }
+  const threshold = 1;
+  return fixtures.filter(f => {
+    const rot = f.rotation || 0;
+    const isRotated = rot === 90 || rot === 270;
+    const visW = isRotated ? f.depth : f.width;
+    const visD = isRotated ? f.width : f.depth;
+
+    switch (wallId) {
+      case 'north': return f.y <= threshold;
+      case 'south': return f.y + visD >= room.depth - threshold;
+      case 'west':  return f.x <= threshold;
+      case 'east':  return f.x + visW >= room.width - threshold;
+      default: return false;
+    }
+  });
+}
 
 export function createTilesView(container) {
   let canvas = null;
@@ -51,7 +96,8 @@ export function createTilesView(container) {
     events.on('state:tileZones', render);
     events.on('state:tileSets', render);
     events.on('state:ui', onUIChange);
-    
+    events.on('state:fixtures', render);
+
     buildWalls();
     resize();
     updateZoomDisplay();
@@ -97,49 +143,63 @@ export function createTilesView(container) {
     const ui = state.getUI();
     const zoom = ui.tilesZoom ?? DEFAULTS.zoom.initial;
     const pan = ui.tilesPanOffset ?? { x: 0, y: 0 };
-    
+
     const padding = 20;
-    const gap = 16;
+    const gapCm = 20;
     const labelHeight = 24;
-    
+
     const room = state.getRoom();
-    const maxWallWidth = Math.max(room.width, room.depth);
-    const maxWallHeight = room.height;
-    
-    const availableWidth = w - padding * 2 - gap * 4;
-    const availableHeight = h - padding * 2 - labelHeight - gap;
-    
-    const wallPixelWidth = availableWidth / 4;
-    const scaleW = wallPixelWidth / maxWallWidth;
-    const scaleH = (availableHeight * 0.7) / maxWallHeight;
-    const baseScale = Math.min(scaleW, scaleH, 1);
+
+    const crossW = room.depth + gapCm + room.width + gapCm + room.depth;
+    const crossH = room.height + gapCm + room.depth + gapCm + room.height;
+
+    const availW = w - padding * 2;
+    const availH = h - padding * 2 - labelHeight;
+    const baseScale = Math.min(availW / crossW, availH / crossH, 1);
     const scale = baseScale * zoom;
-    
-    const layout = [];
-    let x = padding;
-    const wallY = padding + labelHeight + gap;
-    
-    walls.forEach((wall, i) => {
-      const w = wall.width * scale;
-      const h = wall.height * scale;
-      layout.push({
+
+    const gap = gapCm * scale;
+
+    const floorW = room.width * scale;
+    const floorH = room.depth * scale;
+    const wallNorthW = room.width * scale;
+    const wallNorthH = room.height * scale;
+    const wallSouthW = room.width * scale;
+    const wallSouthH = room.height * scale;
+    const wallWestW = room.depth * scale;
+    const wallWestH = room.height * scale;
+    const wallEastW = room.depth * scale;
+    const wallEastH = room.height * scale;
+
+    const totalW = wallWestW + gap + floorW + gap + wallEastW;
+    const totalH = wallNorthH + gap + floorH + gap + wallSouthH;
+    const cx = (w - totalW) / 2 + pan.x;
+    const cy = (h - totalH) / 2 + pan.y;
+
+    const floorX = cx + wallWestW + gap;
+    const floorY = cy + wallNorthH + gap;
+
+    const positions = {
+      floor:  { x: floorX, y: floorY, width: floorW, height: floorH },
+      north:  { x: floorX, y: cy, width: wallNorthW, height: wallNorthH },
+      south:  { x: floorX, y: floorY + floorH + gap, width: wallSouthW, height: wallSouthH },
+      west:   { x: cx, y: floorY + floorH - wallWestH, width: wallWestW, height: wallWestH },
+      east:   { x: floorX + floorW + gap, y: floorY + floorH - wallEastH, width: wallEastW, height: wallEastH },
+    };
+
+    const layout = walls.map(wall => {
+      const pos = positions[wall.id];
+      return {
         wall,
-        x: x + pan.x,
-        y: wallY + pan.y,
-        width: w,
-        height: h,
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
         scale,
         baseScale,
-      });
-      x += w + gap * zoom;
+      };
     });
-    
-    const floorLayout = layout.find(l => l.wall.id === 'floor');
-    if (floorLayout) {
-      const firstWallHeight = layout[0].height;
-      floorLayout.y = wallY + firstWallHeight + gap * 2 * zoom + pan.y;
-    }
-    
+
     return { layout, scale, baseScale };
   }
   
@@ -165,12 +225,13 @@ export function createTilesView(container) {
       ctx.strokeRect(x, y, width, height);
       
       drawGrid(x, y, width, height, wall.width, wall.height, scale);
-      
+      drawFixtureOverlays(item);
+
       ctx.font = '12px system-ui';
       ctx.fillStyle = '#333';
       ctx.textAlign = 'left';
       ctx.fillText(`${wall.label} (${wall.width}×${wall.height} cm)`, x, y - 6);
-      
+
       const wallZones = getZonesForWall(zones, wall.id);
       wallZones.forEach(zone => {
         const ts = tileSets.find(t => t.id === zone.tileSetId);
@@ -217,6 +278,62 @@ export function createTilesView(container) {
     }
   }
   
+  function drawFixtureOverlays(item) {
+    const ui = state.getUI();
+    const overlay = ui.tileFixtureOverlay ?? { visible: true, opacity: 0.35, hidden: [] };
+    if (!overlay.visible) return;
+
+    const fixtures = state.getFixtures();
+    const room = state.getRoom();
+    const surfaceFixtures = getFixturesForSurface(fixtures, item.wall.id, room);
+
+    surfaceFixtures.forEach(fixture => {
+      if ((overlay.hidden || []).includes(fixture.id)) return;
+
+      const proj = projectFixtureToWall(fixture, item.wall.id, room);
+      if (!proj) return;
+
+      const px = item.x + proj.x * item.scale;
+      const py = item.y + proj.y * item.scale;
+      const pw = proj.w * item.scale;
+      const ph = proj.h * item.scale;
+
+      if (fixture.isDoor) {
+        ctx.save();
+        ctx.strokeStyle = `rgba(200, 60, 60, ${overlay.opacity + 0.3})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.rect(px, py, pw, ph);
+        ctx.clip();
+        const step = 8;
+        for (let i = -Math.max(pw, ph); i < Math.max(pw, ph) * 2; i += step) {
+          ctx.moveTo(px + i, py);
+          ctx.lineTo(px + i + ph, py + ph);
+        }
+        ctx.stroke();
+        ctx.restore();
+        ctx.strokeStyle = `rgba(200, 60, 60, ${Math.min(overlay.opacity + 0.4, 1)})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px, py, pw, ph);
+      } else {
+        const color = fixture.wallMounted ? '60, 160, 80' : '60, 120, 200';
+        ctx.fillStyle = `rgba(${color}, ${overlay.opacity})`;
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = `rgba(${color}, ${Math.min(overlay.opacity + 0.3, 1)})`;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(px, py, pw, ph);
+      }
+
+      if (pw > 30 && ph > 14) {
+        ctx.font = '10px system-ui';
+        ctx.fillStyle = fixture.isDoor ? 'rgba(180, 40, 40, 0.9)' : `rgba(${fixture.wallMounted ? '40, 120, 60' : '40, 80, 160'}, 0.9)`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(fixture.label || fixture.catalogId, px + pw / 2, py + ph / 2);
+      }
+    });
+  }
+
   function drawGrid(x, y, width, height, wallW, wallH, scale) {
     ctx.strokeStyle = 'rgba(0,0,0,0.08)';
     ctx.lineWidth = 0.5;

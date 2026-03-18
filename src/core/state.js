@@ -24,6 +24,11 @@ const initial = () => ({
     tilesPanOffset: { x: 0, y: 0 },
     sidebarTab: 'fixtures',
     showClearance: true,
+    tileFixtureOverlay: {
+      visible: true,
+      opacity: 0.35,
+      hidden: [],
+    },
   },
 });
 

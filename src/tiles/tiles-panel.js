@@ -105,7 +105,35 @@ export function createTilesPanel(container) {
     }
     
     html += `</div></div>`;
-    
+
+    const overlay = ui.tileFixtureOverlay ?? { visible: true, opacity: 0.35, hidden: [] };
+    if (fixtures.length > 0) {
+      html += `
+        <div class="panel" style="margin-top:12px;">
+          <div class="panel__header">Elementy na ścianach</div>
+          <div class="panel__body">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="fixture-overlay-toggle" ${overlay.visible ? 'checked' : ''}>
+              Pokaż elementy
+            </label>
+            <div class="form-group" style="margin-top:8px;">
+              <label style="font-size:11px;">Przezroczystość: ${Math.round(overlay.opacity * 100)}%</label>
+              <input type="range" id="fixture-overlay-opacity" min="10" max="100" value="${Math.round(overlay.opacity * 100)}" style="width:100%;" ${overlay.visible ? '' : 'disabled'}>
+            </div>
+            <div style="margin-top:8px;font-size:11px;">
+      `;
+      fixtures.forEach(f => {
+        const hidden = (overlay.hidden || []).includes(f.id);
+        html += `
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;">
+            <input type="checkbox" data-fixture-vis="${f.id}" ${!hidden ? 'checked' : ''} ${overlay.visible ? '' : 'disabled'}>
+            <span>${f.label || f.catalogId}</span>
+          </label>
+        `;
+      });
+      html += `</div></div></div>`;
+    }
+
     wrapper.innerHTML = html;
     bindEvents();
   }
@@ -147,6 +175,36 @@ export function createTilesPanel(container) {
     wrapper.querySelectorAll('[data-delete-zone]').forEach(btn => {
       btn.addEventListener('click', () => {
         state.removeTileZone(btn.dataset.deleteZone);
+      });
+    });
+
+    const overlayToggle = wrapper.querySelector('#fixture-overlay-toggle');
+    if (overlayToggle) {
+      overlayToggle.addEventListener('change', () => {
+        const cur = state.getUI().tileFixtureOverlay ?? { visible: true, opacity: 0.35, hidden: [] };
+        state.update('ui.tileFixtureOverlay', { ...cur, visible: overlayToggle.checked });
+      });
+    }
+
+    const opacitySlider = wrapper.querySelector('#fixture-overlay-opacity');
+    if (opacitySlider) {
+      opacitySlider.addEventListener('input', () => {
+        const cur = state.getUI().tileFixtureOverlay ?? { visible: true, opacity: 0.35, hidden: [] };
+        state.update('ui.tileFixtureOverlay', { ...cur, opacity: parseInt(opacitySlider.value) / 100 });
+      });
+    }
+
+    wrapper.querySelectorAll('[data-fixture-vis]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const cur = state.getUI().tileFixtureOverlay ?? { visible: true, opacity: 0.35, hidden: [] };
+        const id = cb.dataset.fixtureVis;
+        let hidden = [...(cur.hidden || [])];
+        if (cb.checked) {
+          hidden = hidden.filter(h => h !== id);
+        } else {
+          hidden.push(id);
+        }
+        state.update('ui.tileFixtureOverlay', { ...cur, hidden });
       });
     });
   }
