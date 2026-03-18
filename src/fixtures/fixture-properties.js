@@ -47,6 +47,17 @@ export function createFixtureProperties(container) {
             <label>Rotacja: ${fixture.rotation}°</label>
             <button class="btn btn--small" id="prop-rotate">Obróć 90° (R)</button>
           </div>
+          ${!fixture.isDoor ? `
+          <div class="form-group">
+            <label>Strefa użytkowania</label>
+            <select id="prop-front-side">
+              <option value="bottom" ${fixture.frontSide === 'bottom' ? 'selected' : ''}>Dół (przód)</option>
+              <option value="top" ${fixture.frontSide === 'top' ? 'selected' : ''}>Góra (tył)</option>
+              <option value="left" ${fixture.frontSide === 'left' ? 'selected' : ''}>Lewo</option>
+              <option value="right" ${fixture.frontSide === 'right' ? 'selected' : ''}>Prawo</option>
+            </select>
+          </div>
+          ` : ''}
           ${fixture.isDoor ? `
           <div class="form-group">
             <label>Kierunek otwarcia</label>
@@ -95,6 +106,10 @@ export function createFixtureProperties(container) {
 
     wrapper.querySelector('#prop-open-side')?.addEventListener('change', (e) => {
       state.updateFixture(fixture.id, { openSide: e.target.value });
+    });
+
+    wrapper.querySelector('#prop-front-side')?.addEventListener('change', (e) => {
+      state.updateFixture(fixture.id, { frontSide: e.target.value });
     });
 
     wrapper.querySelector('#prop-delete')?.addEventListener('click', () => {

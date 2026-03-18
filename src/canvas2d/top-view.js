@@ -1,7 +1,7 @@
 import { state } from '../core/state.js';
 import { events } from '../core/events.js';
 import { DEFAULTS } from '../core/constants.js';
-import { drawGrid, drawRoom, drawFixture, drawDoor, drawClearanceZone, drawClearanceOverlaps } from './drawing-utils.js';
+import { drawGrid, drawRoom, drawFixture, drawDoor, drawClearanceZone, drawClearanceOverlaps, drawDoorClearanceZone } from './drawing-utils.js';
 import { getCatalogItem } from '../fixtures/fixture-catalog.js';
 import { getAABB, aabbOverlap, isInsideRoom, screenToWorld } from '../core/utils.js';
 
@@ -28,11 +28,14 @@ export function createTopView(renderer) {
     // Draw clearance zones (behind fixtures)
     if (ui.showClearance) {
       fixtures.forEach(f => {
-        if (f.isDoor) return;
         const cat = catalogMap.get(f.catalogId);
         if (cat) {
           f._catalog = cat;
-          drawClearanceZone(ctx, f, ui.zoom, ui.panOffset);
+          if (f.isDoor) {
+            drawDoorClearanceZone(ctx, f, ui.zoom, ui.panOffset);
+          } else {
+            drawClearanceZone(ctx, f, ui.zoom, ui.panOffset);
+          }
         }
       });
       drawClearanceOverlaps(ctx, fixtures, catalogMap, ui.zoom, ui.panOffset);

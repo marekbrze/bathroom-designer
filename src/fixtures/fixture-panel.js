@@ -139,6 +139,25 @@ function showCustomDialog() {
       <div class="form-group">
         <label><input type="checkbox" id="custom-wall"> Montaż na ścianie</label>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Strefa przód (cm)</label>
+          <input type="number" id="custom-clearance-front" value="50" min="0">
+        </div>
+        <div class="form-group">
+          <label>Strefa boki (cm)</label>
+          <input type="number" id="custom-clearance-sides" value="0" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Strona strefy użytkowania</label>
+        <select id="custom-front-side">
+          <option value="bottom">Dół (przód)</option>
+          <option value="top">Góra (tył)</option>
+          <option value="left">Lewo</option>
+          <option value="right">Prawo</option>
+        </select>
+      </div>
       <div class="modal__actions">
         <button class="btn" id="custom-cancel">Anuluj</button>
         <button class="btn btn--primary" id="custom-add">Dodaj</button>
@@ -156,6 +175,9 @@ function showCustomDialog() {
     const depth = parseInt(overlay.querySelector('#custom-depth').value) || 50;
     const height = parseInt(overlay.querySelector('#custom-height').value) || 80;
     const wallMounted = overlay.querySelector('#custom-wall').checked;
+    const clearanceFront = parseInt(overlay.querySelector('#custom-clearance-front').value) || 0;
+    const clearanceSides = parseInt(overlay.querySelector('#custom-clearance-sides').value) || 0;
+    const frontSide = overlay.querySelector('#custom-front-side').value;
 
     addCustomItem({
       id: 'custom-' + generateId(),
@@ -165,10 +187,11 @@ function showCustomDialog() {
       height,
       wallMounted,
       icon: '📦',
+      frontSide,
+      clearance: { front: clearanceFront, sides: clearanceSides },
     });
 
     overlay.remove();
-    // Re-render catalog
     events.emit('state:fixtures', state.getFixtures());
   });
 }

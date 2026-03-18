@@ -17,6 +17,7 @@ export function createFixture(catalogId, x, y, overrides = {}) {
     rotation: 0,
     wallMounted: template.wallMounted,
     snapWall: null,
+    frontSide: template.frontSide || 'bottom',
     ...overrides,
   };
 

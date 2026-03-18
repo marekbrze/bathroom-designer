@@ -1,5 +1,53 @@
 import { COLORS } from '../core/constants.js';
 
+function getClearancePosition(fixture, frontSide, clearanceFront) {
+  const { x, y, width, depth, rotation } = fixture;
+  const rot = rotation || 0;
+  
+  const baseFrontSide = frontSide || 'bottom';
+  const rotSteps = Math.round(rot / 90) % 4;
+  
+  const isRotated = rot === 90 || rot === 270;
+  const effWidth = isRotated ? depth : width;
+  const effDepth = isRotated ? width : depth;
+  
+  const sideOrder = { bottom: 0, right: 1, top: 2, left: 3 };
+  const sides = ['bottom', 'right', 'top', 'left'];
+  const actualSideIndex = (sideOrder[baseFrontSide] + rotSteps) % 4;
+  const actualSide = sides[actualSideIndex];
+  
+  let cx, cy, cw, cd;
+  
+  switch (actualSide) {
+    case 'bottom':
+      cx = x;
+      cy = y + effDepth;
+      cw = effWidth;
+      cd = clearanceFront;
+      break;
+    case 'right':
+      cx = x + effWidth;
+      cy = y;
+      cw = clearanceFront;
+      cd = effDepth;
+      break;
+    case 'top':
+      cx = x;
+      cy = y - clearanceFront;
+      cw = effWidth;
+      cd = clearanceFront;
+      break;
+    case 'left':
+      cx = x - clearanceFront;
+      cy = y;
+      cw = clearanceFront;
+      cd = effDepth;
+      break;
+  }
+  
+  return { x: cx, y: cy, width: cw, depth: cd, side: actualSide };
+}
+
 export function drawGrid(ctx, w, h, zoom, panOffset, gridSize) {
   const step = gridSize * zoom;
   if (step < 3) return;
@@ -135,116 +183,108 @@ export function drawDoor(ctx, fixture, zoom, panOffset, isSelected) {
   const y = fixture.y * zoom + panOffset.y;
   const radius = fixture.doorWidth * zoom;
 
-  // Determine pivot point and arc angles based on rotation, openSide, openDirection
   const rot = fixture.rotation || 0;
   const left = fixture.openSide === 'left';
   const inward = fixture.openDirection === 'inward';
 
-  // Pivot is at left or right corner of the frame
-  let pivotX, pivotY;
-  let startAngle, endAngle;
+  const baseAngles = {
+    'left-inward': { start: 0, end: Math.PI / 2 },
+    'right-inward': { start: Math.PI / 2, end: Math.PI },
+    'left-outward': { start: -Math.PI / 2, end: 0 },
+    'right-outward': { start: Math.PI, end: Math.PI * 1.5 }
+  };
+  
+  const key = `${left ? 'left' : 'right'}-${inward ? 'inward' : 'outward'}`;
+  const angles = baseAngles[key];
+  let startAngle = angles.start;
+  let endAngle = angles.end;
 
-  // For rotation 0: frame is horizontal at top, door swings downward (inward)
-  // We compute base angles then rotate
-  if (left) {
-    pivotX = x;
-    pivotY = y;
-  } else {
-    pivotX = x + w;
-    pivotY = y;
-  }
-
-  // Base arc: from frame edge going 90° into room
-  if (left && inward) {
-    startAngle = 0;         // along frame to the right
-    endAngle = Math.PI / 2; // downward
-  } else if (!left && inward) {
-    startAngle = Math.PI / 2;
-    endAngle = Math.PI;
-  } else if (left && !inward) {
-    startAngle = -Math.PI / 2;
-    endAngle = 0;
-  } else {
-    startAngle = Math.PI;
-    endAngle = Math.PI * 1.5;
-  }
-
-  // Apply fixture rotation around fixture center
-  const cx = x + w / 2;
-  const cy = y + d / 2;
   const rotRad = (rot * Math.PI) / 180;
+  startAngle += rotRad;
+  endAngle += rotRad;
 
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(rotRad);
-  ctx.translate(-cx, -cy);
+  const pivotMap = {
+    0:   { left: [x, y],         right: [x + w, y] },
+    90:  { left: [x + w, y],     right: [x + w, y + d] },
+    180: { left: [x + w, y + d], right: [x, y + d] },
+    270: { left: [x, y + d],     right: [x, y] }
+  };
+  const [rotatedPivotX, rotatedPivotY] = pivotMap[rot][left ? 'left' : 'right'];
 
-  // Draw arc
   ctx.beginPath();
   ctx.setLineDash([6, 4]);
   ctx.strokeStyle = COLORS.doorSwing;
   ctx.lineWidth = 1.5;
-  ctx.arc(pivotX, pivotY, radius, startAngle, endAngle);
+  ctx.arc(rotatedPivotX, rotatedPivotY, radius, startAngle, endAngle);
   ctx.stroke();
 
-  // Draw line from pivot to arc end (door leaf position)
   ctx.beginPath();
   ctx.setLineDash([]);
   ctx.strokeStyle = COLORS.doorSwing;
   ctx.lineWidth = 2;
-  ctx.moveTo(pivotX, pivotY);
-  const leafX = pivotX + Math.cos(endAngle) * radius;
-  const leafY = pivotY + Math.sin(endAngle) * radius;
+  ctx.moveTo(rotatedPivotX, rotatedPivotY);
+  const leafX = rotatedPivotX + Math.cos(endAngle) * radius;
+  const leafY = rotatedPivotY + Math.sin(endAngle) * radius;
   ctx.lineTo(leafX, leafY);
   ctx.stroke();
-
-  ctx.restore();
   ctx.setLineDash([]);
 }
 
 export function drawClearanceZone(ctx, fixture, zoom, panOffset) {
   const catalogItem = fixture._catalog;
   const clearance = catalogItem?.clearance;
-  if (!clearance || (clearance.front <= 0 && clearance.sides <= 0)) return;
+  if (!clearance || clearance.type === 'arc') return;
+  if (clearance.front <= 0 && clearance.sides <= 0) return;
 
   const isRotated = fixture.rotation === 90 || fixture.rotation === 270;
   const w = (isRotated ? fixture.depth : fixture.width) * zoom;
   const d = (isRotated ? fixture.width : fixture.depth) * zoom;
-  const x = fixture.x * zoom + panOffset.x;
-  const y = fixture.y * zoom + panOffset.y;
-  const frontPx = clearance.front * zoom;
-  const sidesPx = clearance.sides * zoom;
-  const rot = fixture.rotation || 0;
+  const baseX = fixture.x * zoom + panOffset.x;
+  const baseY = fixture.y * zoom + panOffset.y;
+  const frontPx = (clearance.front || 0) * zoom;
+  const sidesPx = (clearance.sides || 0) * zoom;
 
-  ctx.save();
-
-  // Front zone: semicircle/rect extending from the "front" side of the element
-  // Front = bottom side at rotation 0 (the side the user faces)
   if (frontPx > 0) {
-    const cx = x + w / 2;
-    const cy = y + d / 2;
-    const rotRad = (rot * Math.PI) / 180;
+    const pos = getClearancePosition(fixture, fixture.frontSide, clearance.front);
+    const zoneX = pos.x * zoom + panOffset.x;
+    const zoneY = pos.y * zoom + panOffset.y;
+    const zoneW = pos.width * zoom;
+    const zoneH = pos.depth * zoom;
 
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(rotRad);
-    ctx.translate(-cx, -cy);
-
-    // Draw rounded rect extending below the fixture (front = +Y at rot 0)
     ctx.beginPath();
-    const zoneX = x;
-    const zoneY = y + d;
-    const zoneW = w;
-    const zoneH = frontPx;
-
-    // Rounded bottom corners
-    const r = Math.min(zoneH, zoneW / 2);
-    ctx.moveTo(zoneX, zoneY);
-    ctx.lineTo(zoneX, zoneY + zoneH - r);
-    ctx.quadraticCurveTo(zoneX, zoneY + zoneH, zoneX + r, zoneY + zoneH);
-    ctx.lineTo(zoneX + zoneW - r, zoneY + zoneH);
-    ctx.quadraticCurveTo(zoneX + zoneW, zoneY + zoneH, zoneX + zoneW, zoneY + zoneH - r);
-    ctx.lineTo(zoneX + zoneW, zoneY);
+    if (pos.side === 'bottom') {
+      const r = Math.min(zoneH, zoneW / 2);
+      ctx.moveTo(zoneX, zoneY);
+      ctx.lineTo(zoneX, zoneY + zoneH - r);
+      ctx.quadraticCurveTo(zoneX, zoneY + zoneH, zoneX + r, zoneY + zoneH);
+      ctx.lineTo(zoneX + zoneW - r, zoneY + zoneH);
+      ctx.quadraticCurveTo(zoneX + zoneW, zoneY + zoneH, zoneX + zoneW, zoneY + zoneH - r);
+      ctx.lineTo(zoneX + zoneW, zoneY);
+    } else if (pos.side === 'top') {
+      const r = Math.min(zoneH, zoneW / 2);
+      ctx.moveTo(zoneX, zoneY + zoneH);
+      ctx.lineTo(zoneX, zoneY + r);
+      ctx.quadraticCurveTo(zoneX, zoneY, zoneX + r, zoneY);
+      ctx.lineTo(zoneX + zoneW - r, zoneY);
+      ctx.quadraticCurveTo(zoneX + zoneW, zoneY, zoneX + zoneW, zoneY + r);
+      ctx.lineTo(zoneX + zoneW, zoneY + zoneH);
+    } else if (pos.side === 'right') {
+      const r = Math.min(zoneW, zoneH / 2);
+      ctx.moveTo(zoneX, zoneY);
+      ctx.lineTo(zoneX, zoneY + zoneH);
+      ctx.lineTo(zoneX + zoneW - r, zoneY + zoneH);
+      ctx.quadraticCurveTo(zoneX + zoneW, zoneY + zoneH, zoneX + zoneW, zoneY + zoneH - r);
+      ctx.lineTo(zoneX + zoneW, zoneY + r);
+      ctx.quadraticCurveTo(zoneX + zoneW, zoneY, zoneX + zoneW - r, zoneY);
+    } else {
+      const r = Math.min(zoneW, zoneH / 2);
+      ctx.moveTo(zoneX + zoneW, zoneY);
+      ctx.lineTo(zoneX + zoneW, zoneY + zoneH);
+      ctx.lineTo(zoneX + r, zoneY + zoneH);
+      ctx.quadraticCurveTo(zoneX, zoneY + zoneH, zoneX, zoneY + zoneH - r);
+      ctx.lineTo(zoneX, zoneY + r);
+      ctx.quadraticCurveTo(zoneX, zoneY, zoneX + r, zoneY);
+    }
     ctx.closePath();
 
     ctx.fillStyle = COLORS.clearanceZone;
@@ -254,72 +294,91 @@ export function drawClearanceZone(ctx, fixture, zoom, panOffset) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.setLineDash([]);
-
-    ctx.restore();
   }
 
-  // Side zones
   if (sidesPx > 0) {
-    const cx = x + w / 2;
-    const cy = y + d / 2;
-    const rotRad = (rot * Math.PI) / 180;
-
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(rotRad);
-    ctx.translate(-cx, -cy);
-
-    // Left side
-    ctx.fillStyle = COLORS.clearanceZone;
-    ctx.fillRect(x - sidesPx, y, sidesPx, d);
-    ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = COLORS.clearanceZoneStroke;
-    ctx.strokeRect(x - sidesPx, y, sidesPx, d);
-
-    // Right side
-    ctx.fillRect(x + w, y, sidesPx, d);
-    ctx.strokeRect(x + w, y, sidesPx, d);
-    ctx.setLineDash([]);
-
-    ctx.restore();
+    const pos = getClearancePosition(fixture, fixture.frontSide, clearance.front);
+    const fx = fixture.x * zoom + panOffset.x;
+    const fy = fixture.y * zoom + panOffset.y;
+    
+    if (pos.side === 'bottom' || pos.side === 'top') {
+      ctx.fillStyle = COLORS.clearanceZone;
+      ctx.fillRect(fx - sidesPx, fy, sidesPx, d);
+      ctx.fillRect(fx + w, fy, sidesPx, d);
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = COLORS.clearanceZoneStroke;
+      ctx.strokeRect(fx - sidesPx, fy, sidesPx, d);
+      ctx.strokeRect(fx + w, fy, sidesPx, d);
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle = COLORS.clearanceZone;
+      ctx.fillRect(fx, fy - sidesPx, w, sidesPx);
+      ctx.fillRect(fx, fy + d, w, sidesPx);
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = COLORS.clearanceZoneStroke;
+      ctx.strokeRect(fx, fy - sidesPx, w, sidesPx);
+      ctx.strokeRect(fx, fy + d, w, sidesPx);
+      ctx.setLineDash([]);
+    }
   }
-
-  ctx.restore();
 }
 
 export function getClearanceRect(fixture, catalog) {
   const clearance = catalog?.clearance;
-  if (!clearance || clearance.front <= 0) return null;
+  if (!clearance || clearance.type === 'arc' || clearance.front <= 0) return null;
 
+  return getClearancePosition(fixture, fixture.frontSide, clearance.front);
+}
+
+export function drawDoorClearanceZone(ctx, fixture, zoom, panOffset) {
+  if (!fixture.isDoor) return;
+  
   const isRotated = fixture.rotation === 90 || fixture.rotation === 270;
-  const fw = isRotated ? fixture.depth : fixture.width;
-  const fd = isRotated ? fixture.width : fixture.depth;
-  const rot = fixture.rotation || 0;
+  const w = (isRotated ? fixture.depth : fixture.width) * zoom;
+  const d = (isRotated ? fixture.width : fixture.depth) * zoom;
+  const x = fixture.x * zoom + panOffset.x;
+  const y = fixture.y * zoom + panOffset.y;
+  const radius = fixture.doorWidth * zoom;
 
-  // At rotation 0, clearance extends in +Y direction from bottom of fixture
-  let cx, cy, cw, cd;
-  if (rot === 0) {
-    cx = fixture.x;
-    cy = fixture.y + fd;
-    cw = fw;
-    cd = clearance.front;
-  } else if (rot === 90) {
-    cx = fixture.x - clearance.front;
-    cy = fixture.y;
-    cw = clearance.front;
-    cd = fd;
-  } else if (rot === 180) {
-    cx = fixture.x;
-    cy = fixture.y - clearance.front;
-    cw = fw;
-    cd = clearance.front;
-  } else {
-    cx = fixture.x + fw;
-    cy = fixture.y;
-    cw = clearance.front;
-    cd = fd;
-  }
-  return { x: cx, y: cy, width: cw, depth: cd };
+  const rot = fixture.rotation || 0;
+  const left = fixture.openSide === 'left';
+  const inward = fixture.openDirection === 'inward';
+
+  const baseAngles = {
+    'left-inward': { start: 0, end: Math.PI / 2 },
+    'right-inward': { start: Math.PI / 2, end: Math.PI },
+    'left-outward': { start: -Math.PI / 2, end: 0 },
+    'right-outward': { start: Math.PI, end: Math.PI * 1.5 }
+  };
+  
+  const key = `${left ? 'left' : 'right'}-${inward ? 'inward' : 'outward'}`;
+  const angles = baseAngles[key];
+  let startAngle = angles.start;
+  let endAngle = angles.end;
+
+  const rotRad = (rot * Math.PI) / 180;
+  startAngle += rotRad;
+  endAngle += rotRad;
+
+  const pivotMap = {
+    0:   { left: [x, y],         right: [x + w, y] },
+    90:  { left: [x + w, y],     right: [x + w, y + d] },
+    180: { left: [x + w, y + d], right: [x, y + d] },
+    270: { left: [x, y + d],     right: [x, y] }
+  };
+  const [rotatedPivotX, rotatedPivotY] = pivotMap[rot][left ? 'left' : 'right'];
+
+  ctx.beginPath();
+  ctx.moveTo(rotatedPivotX, rotatedPivotY);
+  ctx.arc(rotatedPivotX, rotatedPivotY, radius, startAngle, endAngle);
+  ctx.closePath();
+  ctx.fillStyle = COLORS.clearanceZone;
+  ctx.fill();
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = COLORS.clearanceZoneStroke;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
 }
 
 export function drawClearanceOverlaps(ctx, fixtures, catalogMap, zoom, panOffset) {
