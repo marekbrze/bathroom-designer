@@ -2,6 +2,7 @@ import { state } from '../core/state.js';
 import { events } from '../core/events.js';
 import { createTileSet } from '../calculator/tile-set.js';
 import { aggregateTileCounts } from './tiles-calc.js';
+import { clampZoneToWall } from './tile-zone.js';
 
 export function createTilesPanel(container) {
   const wrapper = document.createElement('div');
@@ -86,9 +87,27 @@ export function createTilesPanel(container) {
         html += `
           <div style="margin-top:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);">
             <strong>Wybrana strefa</strong>
-            <div style="font-size:11px;margin-top:4px;">
-              Pozycja: (${zone.x}, ${zone.y}) cm<br>
-              Wymiary: ${zone.width}×${zone.height} cm<br>
+            <div class="form-row" style="margin-top:4px;">
+              <div class="form-group">
+                <label>X (cm)</label>
+                <input type="number" data-zone-prop="x" data-zone-id="${zone.id}" value="${zone.x}" min="0" step="1">
+              </div>
+              <div class="form-group">
+                <label>Y (cm)</label>
+                <input type="number" data-zone-prop="y" data-zone-id="${zone.id}" value="${zone.y}" min="0" step="1">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Szer. (cm)</label>
+                <input type="number" data-zone-prop="width" data-zone-id="${zone.id}" value="${zone.width}" min="10" step="1">
+              </div>
+              <div class="form-group">
+                <label>Wys. (cm)</label>
+                <input type="number" data-zone-prop="height" data-zone-id="${zone.id}" value="${zone.height}" min="10" step="1">
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);">
               Powierzchnia: ${((zone.width * zone.height) / 10000).toFixed(2)} m²
             </div>
             <div class="form-group" style="margin-top:8px;">
@@ -175,6 +194,20 @@ export function createTilesPanel(container) {
     wrapper.querySelectorAll('[data-delete-zone]').forEach(btn => {
       btn.addEventListener('click', () => {
         state.removeTileZone(btn.dataset.deleteZone);
+      });
+    });
+
+    wrapper.querySelectorAll('[data-zone-prop]').forEach(input => {
+      input.addEventListener('change', () => {
+        const zoneId = input.dataset.zoneId;
+        const prop = input.dataset.zoneProp;
+        const value = Math.max(parseInt(input.min), parseInt(input.value) || 0);
+        const zone = state.getTileZones().find(z => z.id === zoneId);
+        if (!zone) return;
+        const updated = { ...zone, [prop]: value };
+        const wallDims = getWallDimensions(zone.wallId);
+        const clamped = clampZoneToWall(updated, wallDims.width, wallDims.height);
+        state.updateTileZone(zoneId, { x: clamped.x, y: clamped.y, width: clamped.width, height: clamped.height });
       });
     });
 
@@ -281,6 +314,18 @@ export function createTilesPanel(container) {
     });
   }
   
+  function getWallDimensions(wallId) {
+    const room = state.getRoom();
+    const dims = {
+      floor:  { width: room.width, height: room.depth },
+      north:  { width: room.width, height: room.height },
+      south:  { width: room.width, height: room.height },
+      east:   { width: room.depth, height: room.height },
+      west:   { width: room.depth, height: room.height },
+    };
+    return dims[wallId] || { width: 300, height: 300 };
+  }
+
   events.on('state:tileSets', render);
   events.on('state:tileZones', render);
   events.on('state:tileFronts', render);

@@ -74,8 +74,10 @@ export function createTilesView(container) {
   let drawing = null;
   let dragging = null;
   let dragStart = { x: 0, y: 0 };
+  let resizing = null; // { zone, layout, edges: { top, bottom, left, right } }
   let isPanning = false;
   let lastMouse = { x: 0, y: 0 };
+  const HANDLE_SIZE = 7;
   
   function init() {
     canvas = document.createElement('canvas');
@@ -255,6 +257,10 @@ export function createTilesView(container) {
           ctx.textAlign = 'center';
           ctx.fillText(ts.name, zx + zw / 2, zy + zh / 2 + 4);
         }
+
+        if (isSelected) {
+          drawResizeHandles(zx, zy, zw, zh);
+        }
       });
     });
     
@@ -359,6 +365,72 @@ export function createTilesView(container) {
     }
   }
   
+  function drawResizeHandles(zx, zy, zw, zh) {
+    const hs = HANDLE_SIZE;
+    ctx.fillStyle = '#ff6600';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    const handles = [
+      [zx, zy],                         // top-left
+      [zx + zw / 2, zy],                // top-center
+      [zx + zw, zy],                    // top-right
+      [zx + zw, zy + zh / 2],           // mid-right
+      [zx + zw, zy + zh],               // bottom-right
+      [zx + zw / 2, zy + zh],           // bottom-center
+      [zx, zy + zh],                    // bottom-left
+      [zx, zy + zh / 2],               // mid-left
+    ];
+    handles.forEach(([hx, hy]) => {
+      ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+      ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+    });
+  }
+
+  function getResizeEdges(px, py) {
+    const ui = state.getUI();
+    const selectedId = ui.selectedTileZoneId;
+    if (!selectedId) return null;
+
+    const { layout } = getLayout();
+    const zones = state.getTileZones();
+    const zone = zones.find(z => z.id === selectedId);
+    if (!zone) return null;
+
+    const item = layout.find(l => l.wall.id === zone.wallId);
+    if (!item) return null;
+
+    const zx = item.x + zone.x * item.scale;
+    const zy = item.y + zone.y * item.scale;
+    const zw = zone.width * item.scale;
+    const zh = zone.height * item.scale;
+
+    const margin = HANDLE_SIZE + 2;
+    // Check if mouse is within extended zone bounds
+    if (px < zx - margin || px > zx + zw + margin || py < zy - margin || py > zy + zh + margin) {
+      return null;
+    }
+
+    const edges = {
+      left: Math.abs(px - zx) <= margin,
+      right: Math.abs(px - (zx + zw)) <= margin,
+      top: Math.abs(py - zy) <= margin,
+      bottom: Math.abs(py - (zy + zh)) <= margin,
+    };
+
+    if (!edges.left && !edges.right && !edges.top && !edges.bottom) return null;
+
+    return { zone, layout: item, edges };
+  }
+
+  function getResizeCursor(edges) {
+    const { top, bottom, left, right } = edges;
+    if ((top && left) || (bottom && right)) return 'nwse-resize';
+    if ((top && right) || (bottom && left)) return 'nesw-resize';
+    if (top || bottom) return 'ns-resize';
+    if (left || right) return 'ew-resize';
+    return 'default';
+  }
+
   function getWallAt(px, py) {
     const { layout } = getLayout();
     for (const item of layout) {
@@ -421,11 +493,20 @@ export function createTilesView(container) {
   
   function onMouseDown(e) {
     if (e.button !== 0) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
-    
+
+    // Resize has priority over drag
+    const resize = getResizeEdges(px, py);
+    if (resize) {
+      resizing = resize;
+      dragStart = { x: px, y: py };
+      canvas.style.cursor = getResizeCursor(resize.edges);
+      return;
+    }
+
     const hit = getZoneAt(px, py);
     if (hit) {
       state.selectTileZone(hit.zone.id);
@@ -476,7 +557,42 @@ export function createTilesView(container) {
       render();
       return;
     }
-    
+
+    if (resizing) {
+      const dx = (px - dragStart.x) / resizing.layout.scale;
+      const dy = (py - dragStart.y) / resizing.layout.scale;
+      const wall = resizing.layout.wall;
+      const zone = resizing.zone;
+      const { top, bottom, left, right } = resizing.edges;
+
+      let newX = zone.x, newY = zone.y, newW = zone.width, newH = zone.height;
+
+      if (left) {
+        const moved = snapToGrid(zone.x + dx);
+        const clamped = Math.max(0, Math.min(moved, zone.x + zone.width - GRID_SIZE));
+        newW = zone.width + (zone.x - clamped);
+        newX = clamped;
+      } else if (right) {
+        newW = snapToGrid(zone.width + dx);
+        newW = Math.max(GRID_SIZE, Math.min(newW, wall.width - zone.x));
+      }
+
+      if (top) {
+        const moved = snapToGrid(zone.y + dy);
+        const clamped = Math.max(0, Math.min(moved, zone.y + zone.height - GRID_SIZE));
+        newH = zone.height + (zone.y - clamped);
+        newY = clamped;
+      } else if (bottom) {
+        newH = snapToGrid(zone.height + dy);
+        newH = Math.max(GRID_SIZE, Math.min(newH, wall.height - zone.y));
+      }
+
+      state.updateTileZone(zone.id, { x: newX, y: newY, width: newW, height: newH });
+      resizing.zone = { ...zone, x: newX, y: newY, width: newW, height: newH };
+      dragStart = { x: px, y: py };
+      return;
+    }
+
     if (drawing) {
       const wallItem = getWallAt(px, py);
       if (wallItem && wallItem.wall.id === drawing.wallId) {
@@ -488,26 +604,41 @@ export function createTilesView(container) {
       render();
       return;
     }
-    
+
     if (dragging) {
       const dx = (px - dragStart.x) / dragging.layout.scale;
       const dy = (py - dragStart.y) / dragging.layout.scale;
-      
+
       const wall = dragging.layout.wall;
       const zone = dragging.zone;
-      
+
       const newX = Math.max(0, Math.min(snapToGrid(zone.x + dx), wall.width - zone.width));
       const newY = Math.max(0, Math.min(snapToGrid(zone.y + dy), wall.height - zone.height));
-      
+
       state.updateTileZone(zone.id, { x: newX, y: newY });
       dragging.zone = { ...zone, x: newX, y: newY };
       dragStart = { x: px, y: py };
+      return;
+    }
+
+    // Update cursor on hover over resize handles
+    const hover = getResizeEdges(px, py);
+    if (hover) {
+      canvas.style.cursor = getResizeCursor(hover.edges);
+    } else {
+      canvas.style.cursor = 'crosshair';
     }
   }
   
   function onMouseUp(e) {
     if (isPanning) {
       isPanning = false;
+      canvas.style.cursor = 'crosshair';
+      return;
+    }
+
+    if (resizing) {
+      resizing = null;
       canvas.style.cursor = 'crosshair';
       return;
     }
