@@ -14,7 +14,7 @@ export function createFixture(catalogId, x, y, overrides = {}) {
     width: template.width,
     depth: template.depth,
     height: template.height,
-    rotation: 0,
+    rotation: template.defaultRotation || 0,
     wallMounted: template.wallMounted,
     snapWall: null,
     frontSide: template.frontSide || 'bottom',
@@ -24,8 +24,8 @@ export function createFixture(catalogId, x, y, overrides = {}) {
   if (template.isDoor) {
     fixture.isDoor = true;
     fixture.doorWidth = template.doorWidth;
-    fixture.openDirection = fixture.openDirection || 'inward';
-    fixture.openSide = fixture.openSide || 'left';
+    fixture.openDirection = fixture.openDirection || template.defaultOpenDirection || 'inward';
+    fixture.openSide = fixture.openSide || template.defaultOpenSide || 'left';
   }
 
   return fixture;

@@ -43,6 +43,12 @@ export function createFixtureProperties(container) {
             <label>Wysokość (cm)</label>
             <input type="number" id="prop-h" value="${fixture.height}" min="5">
           </div>
+          ${fixture.wallMounted ? `
+          <div class="form-group">
+            <label>Wysokość od podłogi (cm)</label>
+            <input type="number" id="prop-z" value="${fixture.z}" min="0">
+          </div>
+          ` : ''}
           <div class="form-group">
             <label>Rotacja: ${fixture.rotation}°</label>
             <button class="btn btn--small" id="prop-rotate">Obróć 90° (R)</button>
@@ -95,6 +101,7 @@ export function createFixtureProperties(container) {
     bind('#prop-w', 'width');
     bind('#prop-d', 'depth');
     bind('#prop-h', 'height');
+    bind('#prop-z', 'z');
 
     wrapper.querySelector('#prop-rotate')?.addEventListener('click', () => {
       state.updateFixture(fixture.id, { rotation: (fixture.rotation + 90) % 360 });

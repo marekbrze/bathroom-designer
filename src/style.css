@@ -95,6 +95,36 @@ html, body {
   border-top: 1px solid var(--border);
 }
 
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.btn-zoom {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  transition: background 0.15s;
+}
+
+.btn-zoom:hover {
+  background: var(--bg);
+}
+
+.btn-zoom:active {
+  background: var(--border);
+}
+
 /* Tabs */
 .tabs {
   display: flex;
@@ -417,4 +447,58 @@ html, body {
   font-size: 12px;
   border-radius: var(--radius);
   white-space: nowrap;
+}
+
+/* Tileset item */
+.tileset-item {
+  border: 1px solid var(--border);
+  padding: 8px;
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+
+.tileset-item--active {
+  border-color: var(--primary);
+  background: #e3f2fd;
+}
+
+.tileset-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.tileset-item__name {
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.tileset-item__specs {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.tileset-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tileset-item__actions input[type="color"] {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+/* Front item */
+.front-item {
+  border: 1px solid var(--border);
+  padding: 8px;
+  border-radius: var(--radius);
+  margin-bottom: 8px;
 }

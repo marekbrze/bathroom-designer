@@ -1,22 +1,69 @@
 import { DEFAULTS } from './constants.js';
 import { events } from './events.js';
 
+const STORAGE_KEY = 'bathroom-designer-state';
+
+const SERIALIZABLE_KEYS = ['room', 'fixtures', 'tileSets', 'surfaceAssignments', 'ui', 'customCatalogItems', 'tileZones', 'tileFronts'];
+
 const initial = () => ({
   room: { ...DEFAULTS.room },
   fixtures: [],
   tileSets: [],
   surfaceAssignments: {},
+  customCatalogItems: [],
+  tileZones: [],
+  tileFronts: [],
   ui: {
     activeView: 'top',
     selectedFixtureId: null,
+    selectedTileZoneId: null,
+    activeTileSetId: null,
     zoom: DEFAULTS.zoom.initial,
     panOffset: { x: 0, y: 0 },
+    tilesZoom: DEFAULTS.zoom.initial,
+    tilesPanOffset: { x: 0, y: 0 },
     sidebarTab: 'fixtures',
     showClearance: true,
   },
 });
 
-let current = initial();
+function saveToStorage() {
+  try {
+    const data = {};
+    SERIALIZABLE_KEYS.forEach(key => { data[key] = current[key]; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn('Failed to save state to localStorage:', e);
+  }
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const base = initial();
+    SERIALIZABLE_KEYS.forEach(key => {
+      if (data[key] !== undefined) base[key] = data[key];
+    });
+    return base;
+  } catch (e) {
+    console.warn('Failed to load state from localStorage:', e);
+    return null;
+  }
+}
+
+function clearStorage() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {
+    console.warn('Failed to clear localStorage:', e);
+  }
+}
+
+let current = loadFromStorage() || initial();
+
+events.on('state:change', saveToStorage);
 
 export const state = {
   get() {
@@ -29,6 +76,10 @@ export const state = {
 
   getFixtures() {
     return current.fixtures;
+  },
+
+  getTileSets() {
+    return current.tileSets;
   },
 
   getUI() {
@@ -108,8 +159,118 @@ export const state = {
     events.emit('state:surfaceAssignments', current.surfaceAssignments);
   },
 
+  getTileZones() {
+    return current.tileZones;
+  },
+
+  addTileZone(zone) {
+    current.tileZones.push(zone);
+    events.emit('state:change', { path: 'tileZones' });
+    events.emit('state:tileZones', current.tileZones);
+  },
+
+  updateTileZone(id, partial) {
+    const z = current.tileZones.find(z => z.id === id);
+    if (!z) return;
+    Object.assign(z, partial);
+    events.emit('state:change', { path: 'tileZones' });
+    events.emit('state:tileZones', current.tileZones);
+  },
+
+  removeTileZone(id) {
+    current.tileZones = current.tileZones.filter(z => z.id !== id);
+    if (current.ui.selectedTileZoneId === id) {
+      current.ui.selectedTileZoneId = null;
+      events.emit('state:ui', current.ui);
+    }
+    events.emit('state:change', { path: 'tileZones' });
+    events.emit('state:tileZones', current.tileZones);
+  },
+
+  getTileFronts() {
+    return current.tileFronts;
+  },
+
+  assignTileFront(fixtureId, tileSetId, color = null) {
+    const existing = current.tileFronts.find(f => f.fixtureId === fixtureId);
+    if (existing) {
+      existing.tileSetId = tileSetId;
+      if (color !== null) existing.color = color;
+    } else {
+      current.tileFronts.push({ fixtureId, tileSetId, color });
+    }
+    events.emit('state:change', { path: 'tileFronts' });
+    events.emit('state:tileFronts', current.tileFronts);
+  },
+
+  removeTileFront(fixtureId) {
+    current.tileFronts = current.tileFronts.filter(f => f.fixtureId !== fixtureId);
+    events.emit('state:change', { path: 'tileFronts' });
+    events.emit('state:tileFronts', current.tileFronts);
+  },
+
+  setActiveTileSet(tileSetId) {
+    current.ui.activeTileSetId = tileSetId;
+    events.emit('state:ui', current.ui);
+  },
+
+  selectTileZone(zoneId) {
+    current.ui.selectedTileZoneId = zoneId;
+    events.emit('state:ui', current.ui);
+  },
+
+  addCustomCatalogItem(item) {
+    current.customCatalogItems.push({ ...item, category: 'custom' });
+    events.emit('state:change', { path: 'customCatalogItems' });
+    events.emit('state:customCatalogItems', current.customCatalogItems);
+  },
+
+  getCustomCatalogItems() {
+    return current.customCatalogItems;
+  },
+
+  exportToJSON() {
+    const data = {};
+    SERIALIZABLE_KEYS.forEach(key => { data[key] = current[key]; });
+    return JSON.stringify(data, null, 2);
+  },
+
+  importFromJSON(jsonString) {
+    try {
+      const data = JSON.parse(jsonString);
+      const base = initial();
+      SERIALIZABLE_KEYS.forEach(key => {
+        if (data[key] !== undefined) base[key] = data[key];
+      });
+      current = base;
+      saveToStorage();
+      events.emit('state:import', current);
+      events.emit('state:room', current.room);
+      events.emit('state:fixtures', current.fixtures);
+      events.emit('state:tileSets', current.tileSets);
+      events.emit('state:surfaceAssignments', current.surfaceAssignments);
+      events.emit('state:customCatalogItems', current.customCatalogItems);
+      events.emit('state:tileZones', current.tileZones);
+      events.emit('state:tileFronts', current.tileFronts);
+      events.emit('state:ui', current.ui);
+      return true;
+    } catch (e) {
+      console.error('Failed to import JSON:', e);
+      return false;
+    }
+  },
+
   reset() {
+    clearStorage();
     current = initial();
     events.emit('state:reset', current);
+    events.emit('state:room', current.room);
+    events.emit('state:fixtures', current.fixtures);
+    events.emit('state:tileSets', current.tileSets);
+    events.emit('state:surfaceAssignments', current.surfaceAssignments);
+    events.emit('state:customCatalogItems', current.customCatalogItems);
+    events.emit('state:tileZones', current.tileZones);
+    events.emit('state:tileFronts', current.tileFronts);
+    events.emit('state:ui', current.ui);
   },
 };

@@ -8,6 +8,8 @@ import { getAABB, aabbOverlap, isInsideRoom, screenToWorld } from '../core/utils
 export function createTopView(renderer) {
   let draggingFixture = null;
   let dragOffset = { x: 0, y: 0 };
+  let isPanning = false;
+  let lastMouse = { x: 0, y: 0 };
 
   function draw(ctx, w, h) {
     const ui = state.getUI();
@@ -96,13 +98,26 @@ export function createTopView(renderer) {
       renderer.canvas.style.cursor = 'move';
     } else {
       state.update('ui.selectedFixtureId', null);
+      isPanning = true;
+      lastMouse = { x: e.clientX, y: e.clientY };
+      renderer.canvas.style.cursor = 'grabbing';
     }
   });
 
   renderer.canvas.addEventListener('mousemove', (e) => {
-    if (!draggingFixture) return;
     const ui = state.getUI();
     const rect = renderer.canvas.getBoundingClientRect();
+
+    if (isPanning) {
+      const dx = e.clientX - lastMouse.x;
+      const dy = e.clientY - lastMouse.y;
+      state.update('ui.panOffset', { x: ui.panOffset.x + dx, y: ui.panOffset.y + dy });
+      lastMouse = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    if (!draggingFixture) return;
+
     const world = screenToWorld(
       e.clientX - rect.left,
       e.clientY - rect.top,
@@ -110,7 +125,6 @@ export function createTopView(renderer) {
       ui.panOffset
     );
 
-    // Snap to grid
     const snap = DEFAULTS.grid.size;
     const newX = Math.round((world.x - dragOffset.x) / snap) * snap;
     const newY = Math.round((world.y - dragOffset.y) / snap) * snap;
@@ -123,33 +137,9 @@ export function createTopView(renderer) {
       draggingFixture = null;
       renderer.canvas.style.cursor = '';
     }
-  });
-
-  // Keyboard shortcuts
-  window.addEventListener('keydown', (e) => {
-    const ui = state.getUI();
-    if (ui.activeView !== 'top') return;
-    if (!ui.selectedFixtureId) return;
-
-    if (e.key === 'r' || e.key === 'R') {
-      const f = state.getFixtures().find(f => f.id === ui.selectedFixtureId);
-      if (f) {
-        state.updateFixture(f.id, { rotation: (f.rotation + 90) % 360 });
-      }
-    }
-
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      state.removeFixture(ui.selectedFixtureId);
-    }
-  });
-
-  // Toggle clearance zones (works without selection)
-  window.addEventListener('keydown', (e) => {
-    const ui = state.getUI();
-    if (ui.activeView !== 'top') return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.key === 'c' || e.key === 'C') {
-      state.update('ui.showClearance', !ui.showClearance);
+    if (isPanning) {
+      isPanning = false;
+      renderer.canvas.style.cursor = '';
     }
   });
 

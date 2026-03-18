@@ -80,6 +80,7 @@ export function createFixturePanel(container) {
 
   render();
   events.on('state:fixtures', render);
+  events.on('state:customCatalogItems', render);
 
   // Drop on canvas
   const canvasArea = document.getElementById('canvas-area');
@@ -192,6 +193,5 @@ function showCustomDialog() {
     });
 
     overlay.remove();
-    events.emit('state:fixtures', state.getFixtures());
   });
 }
