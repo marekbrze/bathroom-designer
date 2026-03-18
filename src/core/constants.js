@@ -1,5 +1,5 @@
 export const DEFAULTS = {
-  room: { width: 250, depth: 200, height: 270 },
+  room: { width: 245, depth: 225, height: 260 },
   grid: { size: 10 },
   zoom: { min: 0.2, max: 5, initial: 1 },
   waste: 10,

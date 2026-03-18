@@ -22,11 +22,11 @@ export function createFixtureProperties(container) {
           <div class="form-row">
             <div class="form-group">
               <label>X (cm)</label>
-              <input type="number" id="prop-x" value="${fixture.x}" step="10">
+              <input type="number" id="prop-x" value="${fixture.x}" step="1">
             </div>
             <div class="form-group">
               <label>Y (cm)</label>
-              <input type="number" id="prop-y" value="${fixture.y}" step="10">
+              <input type="number" id="prop-y" value="${fixture.y}" step="1">
             </div>
           </div>
           <div class="form-row">
