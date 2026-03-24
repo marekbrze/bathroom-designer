@@ -45,7 +45,7 @@ function drawGrid(ctx, x, y, w, h, surfaceW, surfaceH, scale) {
   }
 }
 
-function drawRuler(ctx, x, y, w, h, surfaceW, surfaceH, scale, fontSize) {
+function drawRuler(ctx, x, y, w, h, surfaceW, surfaceH, scale, fontSize, isVerticalWall = false) {
   const minorStep = 10 * scale;
 
   // Top ruler (horizontal — shows width in cm)
@@ -98,9 +98,11 @@ function drawRuler(ctx, x, y, w, h, surfaceW, surfaceH, scale, fontSize) {
     ctx.moveTo(x - tickW, ly);
     ctx.lineTo(x, ly);
     ctx.stroke();
-    if (isMajor && row > 0) {
+    const label = isVerticalWall ? surfaceH - row * 10 : row * 10;
+    const showLabel = isMajor && (isVerticalWall || row > 0);
+    if (showLabel) {
       ctx.fillStyle = '#444444';
-      ctx.fillText(`${row * 10}`, x - 2, ly);
+      ctx.fillText(`${label}`, x - 2, ly);
       ctx.fillStyle = '#555555';
     }
   }
@@ -176,7 +178,7 @@ export function renderTilePlanToContext(ctx, canvasW, canvasH, room, zones, tile
     drawGrid(ctx, x, y, w, h, pos.wallW, pos.wallH, scale);
 
     // 3. Rulers
-    drawRuler(ctx, x, y, w, h, pos.wallW, pos.wallH, scale, rulerFontSize);
+    drawRuler(ctx, x, y, w, h, pos.wallW, pos.wallH, scale, rulerFontSize, wallId !== 'floor');
 
     // 4. Border
     ctx.strokeStyle = '#666666';

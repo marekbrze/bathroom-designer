@@ -84,6 +84,11 @@ export function createTilesPanel(container) {
     if (selectedZoneId) {
       const zone = zones.find(z => z.id === selectedZoneId);
       if (zone) {
+        const zoneDims = getWallDimensions(zone.wallId);
+        const isVertical = zone.wallId !== 'floor';
+        const yDisplay = isVertical ? zoneDims.height - zone.y - zone.height : zone.y;
+        const yLabel = isVertical ? 'Y od podłogi (cm)' : 'Y (cm)';
+        const yProp = isVertical ? 'yFromFloor' : 'y';
         html += `
           <div style="margin-top:12px;padding:8px;border:1px solid var(--border);border-radius:var(--radius);">
             <strong>Wybrana strefa</strong>
@@ -93,8 +98,8 @@ export function createTilesPanel(container) {
                 <input type="number" data-zone-prop="x" data-zone-id="${zone.id}" value="${zone.x}" min="0" step="1">
               </div>
               <div class="form-group">
-                <label>Y (cm)</label>
-                <input type="number" data-zone-prop="y" data-zone-id="${zone.id}" value="${zone.y}" min="0" step="1">
+                <label>${yLabel}</label>
+                <input type="number" data-zone-prop="${yProp}" data-zone-id="${zone.id}" value="${yDisplay}" min="0" step="1">
               </div>
             </div>
             <div class="form-row">
@@ -204,8 +209,15 @@ export function createTilesPanel(container) {
         const value = Math.max(parseInt(input.min), parseInt(input.value) || 0);
         const zone = state.getTileZones().find(z => z.id === zoneId);
         if (!zone) return;
-        const updated = { ...zone, [prop]: value };
         const wallDims = getWallDimensions(zone.wallId);
+        if (prop === 'yFromFloor') {
+          const newY = Math.max(0, wallDims.height - value - zone.height);
+          const updated = { ...zone, y: newY };
+          const clamped = clampZoneToWall(updated, wallDims.width, wallDims.height);
+          state.updateTileZone(zoneId, { x: clamped.x, y: clamped.y, width: clamped.width, height: clamped.height });
+          return;
+        }
+        const updated = { ...zone, [prop]: value };
         const clamped = clampZoneToWall(updated, wallDims.width, wallDims.height);
         state.updateTileZone(zoneId, { x: clamped.x, y: clamped.y, width: clamped.width, height: clamped.height });
       });
