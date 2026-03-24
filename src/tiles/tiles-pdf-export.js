@@ -25,7 +25,7 @@ async function loadFont(doc, url, name, style) {
   doc.addFont(`${name}-${style}.ttf`, name, style);
 }
 
-function drawHeader(doc, room, dateStr) {
+function drawHeader(doc, room, dateStr, roomName) {
   doc.setFont(FONT, 'bold');
   doc.setFontSize(14);
   doc.setTextColor(40, 40, 40);
@@ -34,16 +34,17 @@ function drawHeader(doc, room, dateStr) {
   doc.setFont(FONT, 'normal');
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
+  doc.text(`Pomieszczenie: ${roomName}`, MARGIN, MARGIN + 14);
   doc.text(
-    `Wymiary pomieszczenia: ${room.width} × ${room.depth} cm, wysokość ${room.height} cm`,
+    `Wymiary: ${room.width} × ${room.depth} cm, wysokość ${room.height} cm`,
     MARGIN,
-    MARGIN + 14,
+    MARGIN + 20,
   );
-  doc.text(`Data: ${dateStr}`, MARGIN, MARGIN + 20);
+  doc.text(`Data: ${dateStr}`, MARGIN, MARGIN + 26);
 
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
-  doc.line(MARGIN, MARGIN + 23, PAGE_W - MARGIN, MARGIN + 23);
+  doc.line(MARGIN, MARGIN + 29, PAGE_W - MARGIN, MARGIN + 29);
 }
 
 function drawFooter(doc, page, total) {
@@ -57,6 +58,10 @@ function drawFooter(doc, page, total) {
 
 export async function exportToPDF() {
   const { room, tileZones, tileSets, tileFronts, fixtures } = state.get();
+  const rooms = state.getRooms();
+  const currentRoomId = state.getCurrentRoomId();
+  const currentRoomObj = rooms.find(r => r.id === currentRoomId);
+  const roomName = currentRoomObj?.name || 'Pomieszczenie';
   const aggregated = aggregateTileCounts(tileZones, tileFronts, tileSets, fixtures);
   const hasZones = aggregated.length > 0;
   const dateStr = new Date().toLocaleDateString('pl-PL');
@@ -72,9 +77,9 @@ export async function exportToPDF() {
   // ========================
   // PAGE 1: Tile plan
   // ========================
-  drawHeader(doc, room, dateStr);
+  drawHeader(doc, room, dateStr, roomName);
 
-  const planY = MARGIN + 26;
+  const planY = MARGIN + 32;
   const planW = PAGE_W - MARGIN * 2;
   const planH = PAGE_H - planY - MARGIN - 8;
 
@@ -96,7 +101,7 @@ export async function exportToPDF() {
   // PAGE 2: Tables
   // ========================
   doc.addPage();
-  drawHeader(doc, room, dateStr);
+  drawHeader(doc, room, dateStr, roomName);
 
   const tableY = MARGIN + 26;
 
