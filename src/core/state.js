@@ -196,20 +196,21 @@ export const state = {
     return current.tileFronts;
   },
 
-  assignTileFront(fixtureId, tileSetId, color = null) {
-    const existing = current.tileFronts.find(f => f.fixtureId === fixtureId);
+  assignTileFront(fixtureId, side, tileSetId) {
+    const existing = current.tileFronts.find(f => f.fixtureId === fixtureId && f.side === side);
     if (existing) {
       existing.tileSetId = tileSetId;
-      if (color !== null) existing.color = color;
     } else {
-      current.tileFronts.push({ fixtureId, tileSetId, color });
+      current.tileFronts.push({ fixtureId, side, tileSetId });
     }
     events.emit('state:change', { path: 'tileFronts' });
     events.emit('state:tileFronts', current.tileFronts);
   },
 
-  removeTileFront(fixtureId) {
-    current.tileFronts = current.tileFronts.filter(f => f.fixtureId !== fixtureId);
+  removeTileFront(fixtureId, side) {
+    current.tileFronts = current.tileFronts.filter(
+      f => !(f.fixtureId === fixtureId && f.side === side)
+    );
     events.emit('state:change', { path: 'tileFronts' });
     events.emit('state:tileFronts', current.tileFronts);
   },

@@ -19,12 +19,19 @@ export function calcTilesForZone(zone, tileSet) {
   };
 }
 
-export function calcTilesForFront(fixture, tileSet) {
+function getSideDims(fixture, side) {
+  switch (side) {
+    case 'left':
+    case 'right': return { w: fixture.depth, h: fixture.height };
+    default:      return { w: fixture.width, h: fixture.height };
+  }
+}
+
+export function calcTilesForFront(fixture, tileSet, side = 'front') {
   if (!tileSet) return null;
-  
-  const isRotated = fixture.rotation === 90 || fixture.rotation === 270;
-  const width = isRotated ? fixture.depth : fixture.width;
-  const areaM2 = (width * fixture.height) / 10000;
+
+  const { w, h } = getSideDims(fixture, side);
+  const areaM2 = (w * h) / 10000;
   
   const tileW = (tileSet.tileWidth + tileSet.groutGap) / 1000;
   const tileH = (tileSet.tileHeight + tileSet.groutGap) / 1000;
@@ -70,7 +77,7 @@ export function aggregateTileCounts(zones, fronts, tileSets, fixtures) {
     const ts = tileSets.find(t => t.id === front.tileSetId);
     const fixture = fixtures.find(f => f.id === front.fixtureId);
     if (!ts || !fixture) return;
-    const calc = calcTilesForFront(fixture, ts);
+    const calc = calcTilesForFront(fixture, ts, front.side || 'front');
     if (!calc) return;
     result[ts.id].netArea += calc.netArea;
     result[ts.id].tiles += calc.tiles;
