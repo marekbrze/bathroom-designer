@@ -108,24 +108,26 @@ export async function exportToPDF() {
   autoTable(doc, {
     startY: tableY,
     margin: { left: MARGIN, right: MARGIN },
-    head: [['Zestaw płytek', 'Kolor', 'Pow. netto (m²)', 'Płytki z naddatkiem', 'Wymiary (mm)']],
+    head: [['Zestaw płytek', 'Kolor', 'Pow. netto (m²)', 'Fuga (kg)', 'Płytki z naddatkiem', 'Wymiary (mm)']],
     body: hasZones
       ? aggregated.map(r => [
           r.tileSet.name,
           '',
           r.netArea.toFixed(2),
+          (r.netArea * MATERIAL_RATES.grout.rate).toFixed(1),
           r.tilesWithWaste.toString(),
           `${r.tileSet.tileWidth}×${r.tileSet.tileHeight}`,
         ])
-      : [['Brak zdefiniowanych stref', '', '—', '—', '—']],
+      : [['Brak zdefiniowanych stref', '', '—', '—', '—', '—']],
     styles: { font: FONT, fontSize: 9, cellPadding: 3, overflow: 'ellipsize' },
     headStyles: { fillColor: [70, 70, 70], textColor: 255, fontStyle: 'bold', font: FONT },
     columnStyles: {
       0: { cellWidth: 'auto' },
       1: { cellWidth: 10 },
       2: { cellWidth: 34, halign: 'right' },
-      3: { cellWidth: 38, halign: 'right' },
-      4: { cellWidth: 28, halign: 'center' },
+      3: { cellWidth: 22, halign: 'right' },
+      4: { cellWidth: 38, halign: 'right' },
+      5: { cellWidth: 28, halign: 'center' },
     },
     didDrawCell(data) {
       if (data.column.index === 1 && data.section === 'body' && hasZones) {
