@@ -29,22 +29,21 @@ function drawHeader(doc, room, dateStr, roomName) {
   doc.setFont(FONT, 'bold');
   doc.setFontSize(14);
   doc.setTextColor(40, 40, 40);
-  doc.text('Plan wykończenia łazienki', MARGIN, MARGIN + 7);
+  doc.text(`Plan wykończenia — ${roomName}`, MARGIN, MARGIN + 7);
 
   doc.setFont(FONT, 'normal');
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Pomieszczenie: ${roomName}`, MARGIN, MARGIN + 14);
   doc.text(
     `Wymiary: ${room.width} × ${room.depth} cm, wysokość ${room.height} cm`,
     MARGIN,
-    MARGIN + 20,
+    MARGIN + 14,
   );
-  doc.text(`Data: ${dateStr}`, MARGIN, MARGIN + 26);
+  doc.text(`Data: ${dateStr}`, MARGIN, MARGIN + 20);
 
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
-  doc.line(MARGIN, MARGIN + 29, PAGE_W - MARGIN, MARGIN + 29);
+  doc.line(MARGIN, MARGIN + 23, PAGE_W - MARGIN, MARGIN + 23);
 }
 
 function drawFooter(doc, page, total) {
@@ -79,7 +78,7 @@ export async function exportToPDF() {
   // ========================
   drawHeader(doc, room, dateStr, roomName);
 
-  const planY = MARGIN + 32;
+  const planY = MARGIN + 26;
   const planW = PAGE_W - MARGIN * 2;
   const planH = PAGE_H - planY - MARGIN - 8;
 
@@ -103,7 +102,7 @@ export async function exportToPDF() {
   doc.addPage();
   drawHeader(doc, room, dateStr, roomName);
 
-  const tableY = MARGIN + 26;
+  const tableY = MARGIN + 23;
 
   // Tile sets summary table
   autoTable(doc, {
@@ -252,5 +251,10 @@ export async function exportToPDF() {
 
   drawFooter(doc, 2, 2);
 
-  doc.save(`plan-lazienki-${new Date().toISOString().slice(0, 10)}.pdf`);
+  const safeName = roomName.toLowerCase()
+    .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e')
+    .replace(/ł/g, 'l').replace(/ń/g, 'n').replace(/ó/g, 'o')
+    .replace(/ś/g, 's').replace(/ź/g, 'z').replace(/ż/g, 'z')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  doc.save(`plan-${safeName}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
