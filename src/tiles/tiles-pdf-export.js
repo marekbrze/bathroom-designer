@@ -173,7 +173,7 @@ export async function exportToPDF() {
       body: Object.values(MATERIAL_RATES).map(m => [
         m.label,
         (totalArea * m.rate).toFixed(1),
-        m.unit,
+        m.unit.split('/')[0],
       ]),
       styles: { font: FONT, fontSize: 9, cellPadding: 2.5 },
       headStyles: { fillColor: [100, 100, 100], textColor: 255, fontStyle: 'bold', font: FONT },
