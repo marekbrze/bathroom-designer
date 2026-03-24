@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { state } from '../core/state.js';
 import { aggregateTileCounts } from './tiles-calc.js';
 import { MATERIAL_RATES } from '../core/constants.js';
@@ -72,7 +72,7 @@ export async function exportToPDF() {
       ])
     : [['Brak stref', '', '—', '—', '—']];
 
-  doc.autoTable({
+  const summaryTable = autoTable(doc, {
     startY: contentY,
     margin: { left: tableX, right: MARGIN },
     tableWidth: tableW,
@@ -109,7 +109,7 @@ export async function exportToPDF() {
   });
 
   // Footnote under table
-  const tableEndY = doc.lastAutoTable.finalY + 3;
+  const tableEndY = (doc.lastAutoTable?.finalY ?? contentY + 20) + 3;
   doc.setFontSize(7);
   doc.setTextColor(120, 120, 120);
   doc.text('* z naddatkiem na odpad', tableX, tableEndY);
@@ -130,7 +130,7 @@ export async function exportToPDF() {
       m.unit,
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: matY + 2,
       margin: { left: MARGIN, right: PAGE_W / 2 },
       tableWidth: 100,
