@@ -8,6 +8,50 @@ import { renderTilePlanToContext } from './tiles-pdf-renderer.js';
 const PAGE_W = 297;
 const PAGE_H = 210;
 const MARGIN = 12;
+const FONT = 'Roboto';
+
+async function loadFont(doc, url, name, style) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch font: ${url}`);
+  const buf = await res.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let b64 = '';
+  for (let i = 0; i < bytes.length; i += 8192) {
+    b64 += btoa(String.fromCharCode(...bytes.subarray(i, i + 8192)));
+  }
+  doc.addFileToVFS(`${name}-${style}.ttf`, b64);
+  doc.addFont(`${name}-${style}.ttf`, name, style);
+}
+
+function drawHeader(doc, room, dateStr) {
+  doc.setFont(FONT, 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(40, 40, 40);
+  doc.text('Plan wykończenia łazienki', MARGIN, MARGIN + 7);
+
+  doc.setFont(FONT, 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text(
+    `Wymiary pomieszczenia: ${room.width} × ${room.depth} cm, wysokość ${room.height} cm`,
+    MARGIN,
+    MARGIN + 14,
+  );
+  doc.text(`Data: ${dateStr}`, MARGIN, MARGIN + 20);
+
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.line(MARGIN, MARGIN + 23, PAGE_W - MARGIN, MARGIN + 23);
+}
+
+function drawFooter(doc, page, total) {
+  const y = PAGE_H - 5;
+  doc.setFont(FONT, 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(160, 160, 160);
+  doc.text('Bathroom Designer — wygenerowano automatycznie', MARGIN, y);
+  doc.text(`${page} / ${total}`, PAGE_W - MARGIN, y, { align: 'right' });
+}
 
 export async function exportToPDF() {
   const { room, tileZones, tileSets, tileFronts, fixtures } = state.get();
@@ -15,77 +59,67 @@ export async function exportToPDF() {
   const hasZones = aggregated.length > 0;
   const dateStr = new Date().toLocaleDateString('pl-PL');
 
-  // --- Render tile plan to offscreen canvas ---
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // Load Unicode fonts (required for Polish characters)
+  const base = import.meta.env.BASE_URL ?? '/';
+  await loadFont(doc, `${base}fonts/Roboto-Regular.ttf`, FONT, 'normal');
+  await loadFont(doc, `${base}fonts/Roboto-Bold.ttf`, FONT, 'bold');
+  doc.setFont(FONT, 'normal');
+
+  // ========================
+  // PAGE 1: Tile plan
+  // ========================
+  drawHeader(doc, room, dateStr);
+
+  const planY = MARGIN + 26;
+  const planW = PAGE_W - MARGIN * 2;
+  const planH = PAGE_H - planY - MARGIN - 8;
+
   const offscreen = document.createElement('canvas');
-  offscreen.width = 1400;
-  offscreen.height = 840;
+  offscreen.width = 2800;
+  offscreen.height = Math.round(2800 * (planH / planW));
   const ctx = offscreen.getContext('2d');
   renderTilePlanToContext(ctx, offscreen.width, offscreen.height, room, tileZones, tileSets);
   const planDataUrl = offscreen.toDataURL('image/jpeg', 0.92);
 
-  // --- Create PDF ---
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-  // Header
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.setTextColor(40, 40, 40);
-  doc.text('Plan wykończenia łazienki', MARGIN, MARGIN + 6);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(80, 80, 80);
-  doc.text(
-    `Wymiary pomieszczenia: ${room.width} × ${room.depth} cm, wysokość ${room.height} cm`,
-    MARGIN,
-    MARGIN + 13,
-  );
-  doc.text(`Data: ${dateStr}`, MARGIN, MARGIN + 19);
-
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.3);
-  doc.line(MARGIN, MARGIN + 22, PAGE_W - MARGIN, MARGIN + 22);
-
-  // Layout constants
-  const contentY = MARGIN + 25;
-  const imgW = 178;
-  const tableX = MARGIN + imgW + 6;
-  const tableW = PAGE_W - tableX - MARGIN;
-  const footerH = 12;
-  const imgH = PAGE_H - contentY - footerH - 2;
-
-  // Tile plan image
-  doc.addImage(planDataUrl, 'JPEG', MARGIN, contentY, imgW, imgH);
+  doc.addImage(planDataUrl, 'JPEG', MARGIN, planY, planW, planH);
   doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.3);
-  doc.rect(MARGIN, contentY, imgW, imgH);
+  doc.rect(MARGIN, planY, planW, planH);
 
-  // Summary table (right column)
-  const tableHead = [['Zestaw', 'Kolor', 'Pow. m²', 'Płytki*', 'Wymiary (mm)']];
-  const tableBody = hasZones
-    ? aggregated.map(r => [
-        r.tileSet.name,
-        '',
-        r.netArea.toFixed(2),
-        r.tilesWithWaste.toString(),
-        `${r.tileSet.tileWidth}×${r.tileSet.tileHeight}`,
-      ])
-    : [['Brak stref', '', '—', '—', '—']];
+  drawFooter(doc, 1, 2);
 
-  const summaryTable = autoTable(doc, {
-    startY: contentY,
-    margin: { left: tableX, right: MARGIN },
-    tableWidth: tableW,
-    head: tableHead,
-    body: tableBody,
-    styles: { fontSize: 8, cellPadding: 2.5, overflow: 'ellipsize' },
-    headStyles: { fillColor: [70, 70, 70], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+  // ========================
+  // PAGE 2: Tables
+  // ========================
+  doc.addPage();
+  drawHeader(doc, room, dateStr);
+
+  const tableY = MARGIN + 26;
+
+  // Tile sets summary table
+  autoTable(doc, {
+    startY: tableY,
+    margin: { left: MARGIN, right: MARGIN },
+    head: [['Zestaw płytek', 'Kolor', 'Pow. netto (m²)', 'Płytki z naddatkiem', 'Wymiary (mm)']],
+    body: hasZones
+      ? aggregated.map(r => [
+          r.tileSet.name,
+          '',
+          r.netArea.toFixed(2),
+          r.tilesWithWaste.toString(),
+          `${r.tileSet.tileWidth}×${r.tileSet.tileHeight}`,
+        ])
+      : [['Brak zdefiniowanych stref', '', '—', '—', '—']],
+    styles: { font: FONT, fontSize: 9, cellPadding: 3, overflow: 'ellipsize' },
+    headStyles: { fillColor: [70, 70, 70], textColor: 255, fontStyle: 'bold', font: FONT },
     columnStyles: {
       0: { cellWidth: 'auto' },
-      1: { cellWidth: 8 },
-      2: { cellWidth: 16, halign: 'right' },
-      3: { cellWidth: 14, halign: 'right' },
-      4: { cellWidth: 22, halign: 'center' },
+      1: { cellWidth: 10 },
+      2: { cellWidth: 34, halign: 'right' },
+      3: { cellWidth: 38, halign: 'right' },
+      4: { cellWidth: 28, halign: 'center' },
     },
     didDrawCell(data) {
       if (data.column.index === 1 && data.section === 'body' && hasZones) {
@@ -108,53 +142,44 @@ export async function exportToPDF() {
     },
   });
 
-  // Footnote under table
-  const tableEndY = (doc.lastAutoTable?.finalY ?? contentY + 20) + 3;
+  const afterSummary = doc.lastAutoTable.finalY;
+
+  doc.setFont(FONT, 'normal');
   doc.setFontSize(7);
   doc.setTextColor(120, 120, 120);
-  doc.text('* z naddatkiem na odpad', tableX, tableEndY);
+  doc.text('* z naddatkiem na odpad zgodnie z ustawieniami zestawu', MARGIN, afterSummary + 5);
 
-  // Materials section (below image, only if zones exist)
+  // Materials table
   if (hasZones) {
     const totalArea = aggregated.reduce((s, r) => s + r.netArea, 0);
-    const matY = contentY + imgH + 4;
+    const matTitleY = afterSummary + 14;
 
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
-    doc.text('Orientacyjne zużycie materiałów (łącznie):', MARGIN, matY);
-
-    const matBody = Object.values(MATERIAL_RATES).map(m => [
-      m.label,
-      (totalArea * m.rate).toFixed(1),
-      m.unit,
-    ]);
+    doc.text('Orientacyjne zużycie materiałów (łącznie):', MARGIN, matTitleY);
 
     autoTable(doc, {
-      startY: matY + 2,
-      margin: { left: MARGIN, right: PAGE_W / 2 },
-      tableWidth: 100,
+      startY: matTitleY + 4,
+      margin: { left: MARGIN, right: MARGIN },
+      tableWidth: 110,
       head: [['Materiał', 'Ilość', 'Jednostka']],
-      body: matBody,
-      styles: { fontSize: 8, cellPadding: 1.8 },
-      headStyles: { fillColor: [100, 100, 100], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      body: Object.values(MATERIAL_RATES).map(m => [
+        m.label,
+        (totalArea * m.rate).toFixed(1),
+        m.unit,
+      ]),
+      styles: { font: FONT, fontSize: 9, cellPadding: 2.5 },
+      headStyles: { fillColor: [100, 100, 100], textColor: 255, fontStyle: 'bold', font: FONT },
       columnStyles: {
         0: { cellWidth: 'auto' },
-        1: { cellWidth: 16, halign: 'right' },
-        2: { cellWidth: 20 },
+        1: { cellWidth: 20, halign: 'right' },
+        2: { cellWidth: 24 },
       },
     });
   }
 
-  // Footer
-  const footerY = PAGE_H - 5;
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(160, 160, 160);
-  doc.text('Bathroom Designer — wygenerowano automatycznie', MARGIN, footerY);
-  doc.text('1 / 1', PAGE_W - MARGIN, footerY, { align: 'right' });
+  drawFooter(doc, 2, 2);
 
-  // Save
-  const filename = `plan-lazienki-${new Date().toISOString().slice(0, 10)}.pdf`;
-  doc.save(filename);
+  doc.save(`plan-lazienki-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
