@@ -186,6 +186,67 @@ html, body {
   border-bottom-color: var(--primary);
 }
 
+/* Room Manager */
+.room-manager {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.room-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.room-tab {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.room-tab--active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.room-tab__name {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.room-tab__btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.7;
+  line-height: 1;
+}
+
+.room-tab__btn:hover { opacity: 1; }
+.room-tab__btn--danger:hover { color: var(--danger); }
+.room-tab__btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.room-tab__add {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
 /* Panel */
 .panel {
   border-bottom: 1px solid var(--border);

@@ -35,6 +35,14 @@ export function createRoomForm(container) {
     depthInput.value = room.depth;
     heightInput.value = room.height;
     updateStatusbar(room);
+    const rooms = state.getRooms();
+    const currentRoomObj = rooms.find(r => r.id === state.getCurrentRoomId());
+    const header = panel.querySelector('.panel__header');
+    if (currentRoomObj) {
+      header.textContent = `Wymiary: ${currentRoomObj.name}`;
+    } else {
+      header.textContent = 'Wymiary pomieszczenia';
+    }
   }
 
   function updateStatusbar(room) {
@@ -58,6 +66,7 @@ export function createRoomForm(container) {
   heightInput.addEventListener('input', onInput);
 
   events.on('state:room', () => syncFromState());
+  events.on('state:rooms', () => syncFromState());
 
   // Toggle collapse
   panel.querySelector('.panel__header').addEventListener('click', () => {

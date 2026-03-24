@@ -2,6 +2,7 @@ import './style.css';
 import { createShell } from './app/shell.js';
 import { createProjectControls } from './ui/project-controls.js';
 import { createRoomForm } from './room/room-form.js';
+import { createRoomManager } from './room/room-manager.js';
 import { createFixturePanel } from './fixtures/fixture-panel.js';
 import { createFixtureProperties } from './fixtures/fixture-properties.js';
 import { createCalculatorPanel } from './calculator/calculator-panel.js';
@@ -18,6 +19,7 @@ import { drawSideView } from './canvas2d/side-view.js';
 const { left, right } = createShell();
 
 createProjectControls(left);
+createRoomManager(left);
 createRoomForm(left);
 createFixturePanel(left);
 
