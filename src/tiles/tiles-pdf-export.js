@@ -16,8 +16,9 @@ async function loadFont(doc, url, name, style) {
   const buf = await res.arrayBuffer();
   const bytes = new Uint8Array(buf);
   let b64 = '';
-  for (let i = 0; i < bytes.length; i += 8192) {
-    b64 += btoa(String.fromCharCode(...bytes.subarray(i, i + 8192)));
+  const chunkSize = 8190; // must be a multiple of 3 to avoid mid-string base64 padding
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    b64 += btoa(String.fromCharCode(...bytes.subarray(i, i + chunkSize)));
   }
   doc.addFileToVFS(`${name}-${style}.ttf`, b64);
   doc.addFont(`${name}-${style}.ttf`, name, style);
