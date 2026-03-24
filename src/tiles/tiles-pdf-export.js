@@ -78,7 +78,7 @@ export async function exportToPDF() {
   const planH = PAGE_H - planY - MARGIN - 8;
 
   const offscreen = document.createElement('canvas');
-  offscreen.width = 2800;
+  offscreen.width = 3300; // ~307 DPI on A4 landscape (273 mm content width)
   offscreen.height = Math.round(2800 * (planH / planW));
   const ctx = offscreen.getContext('2d');
   renderTilePlanToContext(ctx, offscreen.width, offscreen.height, room, tileZones, tileSets);

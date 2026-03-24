@@ -14,6 +14,98 @@ const WALL_LABELS = {
   west: 'Ściana Zachód',
 };
 
+const RULER_W = 18; // px — ruler strip width
+
+function drawGrid(ctx, x, y, w, h, surfaceW, surfaceH, scale) {
+  const minorStep = 10 * scale;
+  const majorEvery = 5; // major line every 50 cm
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+  ctx.lineWidth = 0.5;
+  for (let col = 1; col * 10 < surfaceW; col++) {
+    if (col % majorEvery === 0) continue;
+    const lx = x + col * minorStep;
+    ctx.beginPath(); ctx.moveTo(lx, y); ctx.lineTo(lx, y + h); ctx.stroke();
+  }
+  for (let row = 1; row * 10 < surfaceH; row++) {
+    if (row % majorEvery === 0) continue;
+    const ly = y + row * minorStep;
+    ctx.beginPath(); ctx.moveTo(x, ly); ctx.lineTo(x + w, ly); ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 0.8;
+  for (let col = majorEvery; col * 10 < surfaceW; col += majorEvery) {
+    const lx = x + col * minorStep;
+    ctx.beginPath(); ctx.moveTo(lx, y); ctx.lineTo(lx, y + h); ctx.stroke();
+  }
+  for (let row = majorEvery; row * 10 < surfaceH; row += majorEvery) {
+    const ly = y + row * minorStep;
+    ctx.beginPath(); ctx.moveTo(x, ly); ctx.lineTo(x + w, ly); ctx.stroke();
+  }
+}
+
+function drawRuler(ctx, x, y, w, h, surfaceW, surfaceH, scale, fontSize) {
+  const minorStep = 10 * scale;
+
+  // Top ruler (horizontal — shows width in cm)
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.fillRect(x, y - RULER_W, w, RULER_W);
+  ctx.strokeStyle = '#aaaaaa';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(x, y - RULER_W, w, RULER_W);
+
+  ctx.fillStyle = '#555555';
+  ctx.font = `${fontSize}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  for (let col = 0; col * 10 <= surfaceW; col++) {
+    const lx = x + col * minorStep;
+    const isMajor = col % 5 === 0;
+    const tickH = isMajor ? 7 : 3;
+    ctx.strokeStyle = '#888888';
+    ctx.lineWidth = isMajor ? 0.8 : 0.4;
+    ctx.beginPath();
+    ctx.moveTo(lx, y - tickH);
+    ctx.lineTo(lx, y);
+    ctx.stroke();
+    if (isMajor && col > 0) {
+      ctx.fillStyle = '#444444';
+      ctx.fillText(`${col * 10}`, lx, y - RULER_W + 2);
+      ctx.fillStyle = '#555555';
+    }
+  }
+
+  // Left ruler (vertical — shows height in cm)
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.fillRect(x - RULER_W, y, RULER_W, h);
+  ctx.strokeStyle = '#aaaaaa';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(x - RULER_W, y, RULER_W, h);
+
+  ctx.fillStyle = '#555555';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+
+  for (let row = 0; row * 10 <= surfaceH; row++) {
+    const ly = y + row * minorStep;
+    const isMajor = row % 5 === 0;
+    const tickW = isMajor ? 7 : 3;
+    ctx.strokeStyle = '#888888';
+    ctx.lineWidth = isMajor ? 0.8 : 0.4;
+    ctx.beginPath();
+    ctx.moveTo(x - tickW, ly);
+    ctx.lineTo(x, ly);
+    ctx.stroke();
+    if (isMajor && row > 0) {
+      ctx.fillStyle = '#444444';
+      ctx.fillText(`${row * 10}`, x - 2, ly);
+      ctx.fillStyle = '#555555';
+    }
+  }
+}
+
 /**
  * Renders the cross-shaped tile plan onto a 2D canvas context.
  * Pure function — no DOM state, no events, no zoom/pan.
@@ -30,9 +122,9 @@ export function renderTilePlanToContext(ctx, canvasW, canvasH, room, zones, tile
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvasW, canvasH);
 
-  const padding = 40;
+  const padding = 60; // extra space for rulers at canvas edges
   const gapCm = 20;
-  const labelHeight = 28;
+  const labelHeight = 32;
 
   const crossW = room.depth + gapCm + room.width + gapCm + room.depth;
   const crossH = room.height + gapCm + room.depth + gapCm + room.height;
@@ -69,31 +161,40 @@ export function renderTilePlanToContext(ctx, canvasW, canvasH, room, zones, tile
   };
 
   const wallIds = ['floor', 'north', 'south', 'west', 'east'];
+  const labelFontSize = Math.max(10, Math.min(16, scale * 6));
+  const rulerFontSize = Math.max(8, Math.min(13, scale * 4.5));
 
   wallIds.forEach(wallId => {
     const pos = positions[wallId];
     const { x, y, w, h } = pos;
 
-    // Wall background
+    // 1. Wall background
     ctx.fillStyle = WALL_COLORS[wallId];
     ctx.fillRect(x, y, w, h);
+
+    // 2. Grid
+    drawGrid(ctx, x, y, w, h, pos.wallW, pos.wallH, scale);
+
+    // 3. Rulers
+    drawRuler(ctx, x, y, w, h, pos.wallW, pos.wallH, scale, rulerFontSize);
+
+    // 4. Border
     ctx.strokeStyle = '#666666';
     ctx.lineWidth = 1;
     ctx.strokeRect(x, y, w, h);
 
-    // Label above the wall
-    const fontSize = Math.max(10, Math.min(14, scale * 6));
-    ctx.font = `${fontSize}px system-ui, sans-serif`;
-    ctx.fillStyle = '#444444';
+    // 5. Label above the wall
+    ctx.font = `${labelFontSize}px system-ui, sans-serif`;
+    ctx.fillStyle = '#333333';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
     ctx.fillText(
       `${WALL_LABELS[wallId]} (${pos.wallW}×${pos.wallH} cm)`,
       x,
-      y - 4,
+      y - RULER_W - 4,
     );
 
-    // Tile zones for this wall
+    // 6. Tile zones
     zones.forEach(zone => {
       if (zone.wallId !== wallId) return;
 
@@ -111,8 +212,8 @@ export function renderTilePlanToContext(ctx, canvasW, canvasH, room, zones, tile
       ctx.strokeRect(zx, zy, zw, zh);
 
       if (ts && zw > 20 && zh > 12) {
-        const labelFontSize = Math.max(9, Math.min(12, scale * 5));
-        ctx.font = `bold ${labelFontSize}px system-ui, sans-serif`;
+        const zoneLabelSize = Math.max(9, Math.min(12, scale * 5));
+        ctx.font = `bold ${zoneLabelSize}px system-ui, sans-serif`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
