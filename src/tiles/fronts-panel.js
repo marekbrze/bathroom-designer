@@ -2,11 +2,8 @@ import { state } from '../core/state.js';
 import { events } from '../core/events.js';
 import { calcTilesForFront } from './tiles-calc.js';
 
-const TILEABLE_CATEGORIES = ['bathtub', 'shower'];
-
 function isTileable(fixture) {
-  return fixture.type === 'bathtub' || fixture.type === 'shower' || 
-         fixture.id?.includes('bathtub') || fixture.id?.includes('shower');
+  return fixture.catalogId === 'bathtub' || fixture.catalogId === 'shower';
 }
 
 export function createFrontsPanel(container) {
