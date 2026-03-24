@@ -10,6 +10,7 @@ export function createProjectControls(container) {
       <div class="project-controls" style="display:flex;gap:4px;flex-wrap:wrap;">
         <button class="btn btn--small" id="btn-new-project" title="Nowy projekt">Nowy</button>
         <button class="btn btn--small" id="btn-export" title="Eksportuj do pliku JSON">Eksportuj</button>
+        <button class="btn btn--small" id="btn-export-pdf" title="Eksportuj plan płytek do PDF">PDF</button>
         <button class="btn btn--small" id="btn-import" title="Importuj z pliku JSON">Importuj</button>
       </div>
       <input type="file" id="import-file-input" accept=".json" style="display:none;">
@@ -19,6 +20,7 @@ export function createProjectControls(container) {
 
   const btnNew = panel.querySelector('#btn-new-project');
   const btnExport = panel.querySelector('#btn-export');
+  const btnExportPdf = panel.querySelector('#btn-export-pdf');
   const btnImport = panel.querySelector('#btn-import');
   const fileInput = panel.querySelector('#import-file-input');
 
@@ -44,6 +46,21 @@ export function createProjectControls(container) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  });
+
+  btnExportPdf.addEventListener('click', async () => {
+    btnExportPdf.disabled = true;
+    btnExportPdf.textContent = '...';
+    try {
+      const { exportToPDF } = await import('../tiles/tiles-pdf-export.js');
+      await exportToPDF();
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert('Nie udało się wygenerować PDF.');
+    } finally {
+      btnExportPdf.disabled = false;
+      btnExportPdf.textContent = 'PDF';
+    }
   });
 
   btnImport.addEventListener('click', () => {

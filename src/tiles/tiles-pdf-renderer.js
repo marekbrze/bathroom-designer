@@ -1,0 +1,125 @@
+const WALL_COLORS = {
+  floor: '#d4c4a8',
+  north: '#e8e0d8',
+  east: '#e0d8e8',
+  south: '#d8e0e8',
+  west: '#e8e8d8',
+};
+
+const WALL_LABELS = {
+  floor: 'Podłoga',
+  north: 'Ściana Północ',
+  east: 'Ściana Wschód',
+  south: 'Ściana Południe',
+  west: 'Ściana Zachód',
+};
+
+/**
+ * Renders the cross-shaped tile plan onto a 2D canvas context.
+ * Pure function — no DOM state, no events, no zoom/pan.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} canvasW
+ * @param {number} canvasH
+ * @param {{ width: number, depth: number, height: number }} room - dimensions in cm
+ * @param {Array} zones - TileZone[]
+ * @param {Array} tileSets - TileSet[]
+ */
+export function renderTilePlanToContext(ctx, canvasW, canvasH, room, zones, tileSets) {
+  ctx.clearRect(0, 0, canvasW, canvasH);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  const padding = 40;
+  const gapCm = 20;
+  const labelHeight = 28;
+
+  const crossW = room.depth + gapCm + room.width + gapCm + room.depth;
+  const crossH = room.height + gapCm + room.depth + gapCm + room.height;
+
+  const availW = canvasW - padding * 2;
+  const availH = canvasH - padding * 2 - labelHeight;
+  const scale = Math.min(availW / crossW, availH / crossH);
+
+  const gap = gapCm * scale;
+
+  const floorW = room.width * scale;
+  const floorH = room.depth * scale;
+  const wallNH = room.height * scale;
+  const wallSH = room.height * scale;
+  const wallWW = room.depth * scale;
+  const wallWH = room.height * scale;
+  const wallEW = room.depth * scale;
+  const wallEH = room.height * scale;
+
+  const totalW = wallWW + gap + floorW + gap + wallEW;
+  const totalH = wallNH + gap + floorH + gap + wallSH;
+  const cx = (canvasW - totalW) / 2;
+  const cy = (canvasH - totalH) / 2;
+
+  const floorX = cx + wallWW + gap;
+  const floorY = cy + wallNH + gap;
+
+  const positions = {
+    floor: { x: floorX, y: floorY, w: floorW, h: floorH, wallW: room.width, wallH: room.depth },
+    north: { x: floorX, y: cy, w: room.width * scale, h: wallNH, wallW: room.width, wallH: room.height },
+    south: { x: floorX, y: floorY + floorH + gap, w: room.width * scale, h: wallSH, wallW: room.width, wallH: room.height },
+    west:  { x: cx, y: floorY + floorH - wallWH, w: wallWW, h: wallWH, wallW: room.depth, wallH: room.height },
+    east:  { x: floorX + floorW + gap, y: floorY + floorH - wallEH, w: wallEW, h: wallEH, wallW: room.depth, wallH: room.height },
+  };
+
+  const wallIds = ['floor', 'north', 'south', 'west', 'east'];
+
+  wallIds.forEach(wallId => {
+    const pos = positions[wallId];
+    const { x, y, w, h } = pos;
+
+    // Wall background
+    ctx.fillStyle = WALL_COLORS[wallId];
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+
+    // Label above the wall
+    const fontSize = Math.max(10, Math.min(14, scale * 6));
+    ctx.font = `${fontSize}px system-ui, sans-serif`;
+    ctx.fillStyle = '#444444';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(
+      `${WALL_LABELS[wallId]} (${pos.wallW}×${pos.wallH} cm)`,
+      x,
+      y - 4,
+    );
+
+    // Tile zones for this wall
+    zones.forEach(zone => {
+      if (zone.wallId !== wallId) return;
+
+      const ts = tileSets.find(t => t.id === zone.tileSetId);
+      const zx = x + zone.x * scale;
+      const zy = y + zone.y * scale;
+      const zw = zone.width * scale;
+      const zh = zone.height * scale;
+
+      ctx.fillStyle = ts ? ts.color + 'bb' : '#ccccccbb';
+      ctx.fillRect(zx, zy, zw, zh);
+
+      ctx.strokeStyle = ts ? ts.color : '#aaaaaa';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(zx, zy, zw, zh);
+
+      if (ts && zw > 20 && zh > 12) {
+        const labelFontSize = Math.max(9, Math.min(12, scale * 5));
+        ctx.font = `bold ${labelFontSize}px system-ui, sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(ts.name, zx + zw / 2, zy + zh / 2);
+      }
+    });
+  });
+
+  ctx.textBaseline = 'alphabetic';
+}
