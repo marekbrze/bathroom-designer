@@ -6,7 +6,7 @@ function isTileable(fixture) {
   return fixture.catalogId === 'bathtub' || fixture.catalogId === 'shower';
 }
 
-const FIXTURE_SIDES = {
+export const FIXTURE_SIDES = {
   bathtub: [
     { id: 'front', label: 'Przód',        getDims: f => ({ w: f.width, h: f.height }) },
     { id: 'left',  label: 'Lewa strona',  getDims: f => ({ w: f.depth, h: f.height }) },

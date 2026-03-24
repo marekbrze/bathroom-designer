@@ -1,9 +1,10 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { state } from '../core/state.js';
-import { aggregateTileCounts } from './tiles-calc.js';
+import { aggregateTileCounts, calcTilesForFront } from './tiles-calc.js';
 import { MATERIAL_RATES } from '../core/constants.js';
 import { renderTilePlanToContext } from './tiles-pdf-renderer.js';
+import { FIXTURE_SIDES } from './fronts-panel.js';
 
 const PAGE_W = 297;
 const PAGE_H = 210;
@@ -176,6 +177,70 @@ export async function exportToPDF() {
         0: { cellWidth: 'auto' },
         1: { cellWidth: 20, halign: 'right' },
         2: { cellWidth: 24 },
+      },
+    });
+  }
+
+  // Fronts table
+  const tileableFixtures = fixtures.filter(f => f.catalogId === 'bathtub' || f.catalogId === 'shower');
+  const frontsWithData = [];
+  tileableFixtures.forEach(fixture => {
+    const sides = FIXTURE_SIDES[fixture.catalogId] || [];
+    sides.forEach(side => {
+      const front = tileFronts.find(f => f.fixtureId === fixture.id && f.side === side.id);
+      if (!front) return;
+      const ts = tileSets.find(t => t.id === front.tileSetId);
+      if (!ts) return;
+      const { w, h } = side.getDims(fixture);
+      const calc = calcTilesForFront(fixture, ts, side.id);
+      frontsWithData.push({ fixture, side, ts, w, h, calc });
+    });
+  });
+
+  if (frontsWithData.length > 0) {
+    const frontsY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 14 : afterSummary + 14;
+
+    doc.setFont(FONT, 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text('Płytki na bokach armatury:', MARGIN, frontsY);
+
+    autoTable(doc, {
+      startY: frontsY + 4,
+      margin: { left: MARGIN, right: MARGIN },
+      head: [['Element', 'Bok', 'Wymiary (cm)', 'Pow. (m²)', 'Płytki z naddatkiem', 'Zestaw płytek', 'Kolor']],
+      body: frontsWithData.map(({ fixture, side, ts, w, h, calc }) => [
+        fixture.label || fixture.catalogId,
+        side.label,
+        `${w}×${h}`,
+        ((w * h) / 10000).toFixed(2),
+        calc ? calc.tilesWithWaste.toString() : '—',
+        ts.name,
+        '',
+      ]),
+      styles: { font: FONT, fontSize: 9, cellPadding: 3, overflow: 'ellipsize' },
+      headStyles: { fillColor: [70, 70, 70], textColor: 255, fontStyle: 'bold', font: FONT },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 26, halign: 'center' },
+        3: { cellWidth: 22, halign: 'right' },
+        4: { cellWidth: 38, halign: 'right' },
+        5: { cellWidth: 'auto' },
+        6: { cellWidth: 10 },
+      },
+      didDrawCell(data) {
+        if (data.column.index === 6 && data.section === 'body') {
+          const item = frontsWithData[data.row.index];
+          if (!item) return;
+          const hex = item.ts.color || '#888888';
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          doc.setFillColor(r, g, b);
+          const pad = 1.5;
+          doc.rect(data.cell.x + pad, data.cell.y + pad, data.cell.width - pad * 2, data.cell.height - pad * 2, 'F');
+        }
       },
     });
   }
